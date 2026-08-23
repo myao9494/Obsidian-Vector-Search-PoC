@@ -14,6 +14,7 @@ from sentence_transformers import SentenceTransformer
 # ダウンロード対象モデルリスト (識別子, HuggingFaceリポジトリ名, 保存先フォルダ名)
 TARGET_MODELS = [
     ("Multilingual E5 Base (🌟多言語推奨・速度精度バランス・768d)", "intfloat/multilingual-e5-base", "multilingual-e5-base"),
+    ("PKSHA SimCSE-JA (🇯🇵PKSHA製日本語特化・Apache2.0・768d)", "pkshatech/simcse-ja-bert-base-clcmlp", "pksha-simcse-ja"),
     ("Sup-SimCSE-JA Large (🇯🇵日本語特化SOTA・高精度・1024d)", "cl-nagoya/sup-simcse-ja-large", "sup-simcse-ja-large"),
     ("Sup-SimCSE-JA Base (🇯🇵日本語特化・高速・768d)", "cl-nagoya/sup-simcse-ja-base", "sup-simcse-ja-base"),
     ("SBERT-Base-JA (🇯🇵日本語文埋め込み定番・MIT・768d)", "colorfulscoop/sbert-base-ja", "sbert-base-ja"),

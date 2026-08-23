@@ -39,6 +39,7 @@ export function ModelSelector({ modelPath, setModelPath, modelStatus, setModelSt
 
   const PRESETS = [
     { label: '🌟 Multilingual E5 Base (多言語推奨・速度精度バランス, 768d, ~0.1s)', path: '/Users/mine/000_work/test/PoC_lag/models/multilingual-e5-base' },
+    { label: '🇯🇵 PKSHA SimCSE-JA (PKSHA製日本語特化・Apache2.0, 768d, ~0.1s)', path: '/Users/mine/000_work/test/PoC_lag/models/pksha-simcse-ja' },
     { label: '🇯🇵 Sup-SimCSE-JA Large (日本語特化SOTA・高精度, 1024d, ~0.3s)', path: '/Users/mine/000_work/test/PoC_lag/models/sup-simcse-ja-large' },
     { label: '🇯🇵 Sup-SimCSE-JA Base (日本語特化・高速, 768d, ~0.1s)', path: '/Users/mine/000_work/test/PoC_lag/models/sup-simcse-ja-base' },
     { label: '🇯🇵 SBERT-Base-JA (日本語BERT定番・MIT, 768d, ~0.1s)', path: '/Users/mine/000_work/test/PoC_lag/models/sbert-base-ja' },

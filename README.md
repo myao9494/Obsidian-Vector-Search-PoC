@@ -108,9 +108,45 @@ models/multilingual-e5-base/
 | `models/multilingual-e5-base/1_Pooling/config.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/1_Pooling/config.json) |
 | `models/multilingual-e5-base/2_Normalize/config.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/2_Normalize/config.json) |
 
+#### 2. 【🇯🇵PKSHA製日本語特化】 `pkshatech/simcse-ja-bert-base-clcmlp` (768次元 / Apache 2.0: 商用利用OK)
+
+- **Hugging Face ページ**: [https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/tree/main](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/tree/main)
+- **配置先フォルダ**: `models/pksha-simcse-ja/`
+
+**📂 必要な全ファイル構成（ディレクトリツリー）**:
+```text
+models/pksha-simcse-ja/
+├── model.safetensors                 # [必須] モデル重み本体 (約440MB)
+├── config.json                       # [必須] モデル設定
+├── vocab.txt                         # [必須] 日本語語彙辞書
+├── tokenizer_config.json             # [必須] トークナイザー設定
+├── sentence_bert_config.json         # [必須] SentenceTransformers設定
+├── config_sentence_transformers.json # [必須] ST詳細設定
+├── modules.json                      # [必須] パイプライン構成定義
+├── 1_Pooling/
+│   └── config.json                   # [必須] プーリング設定
+└── 2_Dense/
+    ├── config.json                   # [必須] Dense層設定
+    └── model.safetensors             # [必須] Dense層重み
+```
+
+**📥 各ファイルの個別ダウンロード直リンク**:
+| ファイルパス (配置先) | ダウンロードリンク |
+|---|---|
+| `models/pksha-simcse-ja/model.safetensors` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/model.safetensors) |
+| `models/pksha-simcse-ja/config.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/config.json) |
+| `models/pksha-simcse-ja/vocab.txt` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/vocab.txt) |
+| `models/pksha-simcse-ja/tokenizer_config.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/tokenizer_config.json) |
+| `models/pksha-simcse-ja/sentence_bert_config.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/sentence_bert_config.json) |
+| `models/pksha-simcse-ja/config_sentence_transformers.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/config_sentence_transformers.json) |
+| `models/pksha-simcse-ja/modules.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/modules.json) |
+| `models/pksha-simcse-ja/1_Pooling/config.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/1_Pooling/config.json) |
+| `models/pksha-simcse-ja/2_Dense/config.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/2_Dense/config.json) |
+| `models/pksha-simcse-ja/2_Dense/model.safetensors` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/2_Dense/model.safetensors) |
+
 ---
 
-#### 2. 【🇯🇵日本語特化SOTA・高精度】 `cl-nagoya/sup-simcse-ja-large` (1024次元 / CC BY-SA 4.0: 商用利用OK)
+#### 3. 【🇯🇵日本語特化SOTA・高精度】 `cl-nagoya/sup-simcse-ja-large` (1024次元 / CC BY-SA 4.0: 商用利用OK)
 
 - **Hugging Face ページ**: [https://huggingface.co/cl-nagoya/sup-simcse-ja-large/tree/main](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/tree/main)
 - **配置先フォルダ**: `models/sup-simcse-ja-large/`
