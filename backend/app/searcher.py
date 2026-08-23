@@ -55,19 +55,56 @@ class SearchResponse:
 
 def extract_query_keywords(query: str) -> List[str]:
     """
-    クエリ文字列から助詞や記号を除いた重要キーワードリスト（2文字以上）を抽出する
+    クエリ文字列から助詞や記号を除いた重要キーワードリストを抽出する。
+    スペース区切りだけでなく、漢字ブロック、カタカナブロック、英数単語の文字種境界や助詞で自然文を分解する。
     """
     import re
-    # 記号や空白で分割
-    tokens = re.split(r"[\s\.,、。!?！？\-_/()（）「」『』【】]+", query)
-    stop_words = {"について", "に関する", "の基礎", "とは", "概要", "詳細", "まとめ", "方法", "どう", "なに", "なぜ", "これ", "それ"}
+    stop_words = {
+        "について", "に関する", "の基礎", "とは", "概要", "詳細", "まとめ", "方法",
+        "どう", "なに", "なぜ", "これ", "それ", "あれ", "どこ", "だれ", "ので",
+        "から", "たい", "です", "ます", "ある", "いる", "する", "こと", "もの"
+    }
+
+    # 1. 記号や空白で大まかに分割
+    coarse_tokens = re.split(r"[\s\.,、。!?！？\-_/()（）「」『』【】]+", query)
     
-    keywords = []
-    for t in tokens:
-        t_clean = t.strip()
-        if len(t_clean) >= 2 and t_clean not in stop_words:
-            keywords.append(t_clean)
-    return keywords
+    keywords_set = set()
+    for token in coarse_tokens:
+        t = token.strip()
+        if not t:
+            continue
+        
+        # 2. 漢字の連続、カタカナの連続、英単語の連続を抽出
+        chunks = re.findall(r"[\u4e00-\u9fff]+|[\u30a0-\u30ff]{2,}|[a-zA-Z0-9]{2,}|[\u3040-\u309f]{2,}", t)
+        for chunk in chunks:
+            c = chunk.strip()
+            # 助詞・活用語尾の簡易トリミング
+            c = re.sub(r"^(?:ので|から|より|など|へと|には|では|への|での)", "", c)
+            c = re.sub(r"(?:について|に関する|なので|でした|ました|したい|たい|です|ます|ので|から|ない|れた|った|いた)$", "", c)
+            if len(c) >= 2 and c not in stop_words:
+                keywords_set.add(c)
+
+    return sorted(list(keywords_set), key=lambda x: -len(x))
+
+
+def strip_markdown_to_plain(text: str) -> str:
+    """Markdown記法（リンク、画像、装飾、テーブル枠）を自然言語プレーンテキストに変換する"""
+    import re
+    # [テキスト](URL) -> テキスト
+    t = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
+    # ![[画像/埋め込み]] -> 空白
+    t = re.sub(r"!\[\[[^\]]+\]\]", "", t)
+    # URLの除去 (http://... や https://...)
+    t = re.sub(r"https?://[^\s\)\>]+", "", t)
+    # テーブル枠線やセル区切り |
+    t = re.sub(r"\|", " ", t)
+    # 見出し記号 # や箇条書き記号 - *
+    t = re.sub(r"^[#\-*>]+\s*", "", t, flags=re.MULTILINE)
+    # 装飾記号 ` * _
+    t = re.sub(r"[`*_~]+", "", t)
+    # 連続空白の圧縮
+    t = re.sub(r"[ \t]+", " ", t)
+    return t.strip()
 
 
 def find_salient_sentence(
@@ -76,30 +113,54 @@ def find_salient_sentence(
     embedder: BaseEmbedder
 ) -> Optional[str]:
     """
-    チャンクテキストを文（Sentences）に分割し、クエリベクトルに最も強く反応（類似）した文を特定する
+    チャンクテキストを文（Sentences）に分割し、クエリベクトルに最も強く反応（類似）した文を特定する。
+    Markdown記法やURLを除去した純粋な自然言語文のみを対象とする。
     """
     import re
     if not text:
         return None
-    # 句点、改行、箇条書きなどで文分割
-    raw_sentences = re.split(r"(?:\n+|(?<=[。！？\.\?!]))", text)
-    sentences = [
-        s.strip()
-        for s in raw_sentences
-        if len(s.strip()) >= 10 and not re.match(r"^[-*#>\s]+$", s.strip())
-    ]
-    if not sentences:
+
+    # 1. プレーンテキスト化
+    plain_text = strip_markdown_to_plain(text)
+    if not plain_text:
         return None
-    if len(sentences) == 1:
-        return sentences[0]
+
+    # 2. 句点、改行、句読点で文分割
+    raw_sentences = re.split(r"(?:\n+|(?<=[。！？\.\?!]))", plain_text)
+    valid_sentences = []
+
+    for raw_s in raw_sentences:
+        s = raw_s.strip()
+        # 記号除去
+        cleaned_s = re.sub(r"^[\s#\-*|>|`\(\)\[\]]+|[\s#\-*|>|`\(\)\[\]]+$", "", s).strip()
+        
+        # 最小長チェック
+        if len(cleaned_s) < 8:
+            continue
+
+        # 自然言語文字（日本語・英数字）が最低6文字以上
+        natural_chars = re.findall(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\w]", cleaned_s)
+        if len(natural_chars) < 6:
+            continue
+
+        # URLやパスの残骸を除外
+        if re.search(r"\.(?:jp|com|net|html|php|aspx|ipynb|excalidraw)", cleaned_s, re.IGNORECASE):
+            continue
+
+        valid_sentences.append(cleaned_s)
+
+    if not valid_sentences:
+        return None
+    if len(valid_sentences) == 1:
+        return valid_sentences[0]
 
     try:
-        s_vecs = embedder.encode_batch(sentences, is_query=False)
+        s_vecs = embedder.encode_batch(valid_sentences, is_query=False)
         scores = s_vecs @ query_vec
         best_idx = int(np.argmax(scores))
-        return sentences[best_idx]
+        return valid_sentences[best_idx]
     except Exception:
-        return sentences[0]
+        return valid_sentences[0]
 
 
 class VectorSearcher:

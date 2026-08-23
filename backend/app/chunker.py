@@ -20,7 +20,7 @@ class ChunkData:
 
 def clean_markdown_text(text: str) -> str:
     """
-    MarkdownテキストからYAML Frontmatter（--- ... ---）や過剰な空行を除去する
+    MarkdownテキストからYAML Frontmatter（--- ... ---）、過剰な空行、テーブルの大量空白パディングを除去する
     """
     cleaned = text.strip()
     # YAML Frontmatterの除去
@@ -28,6 +28,14 @@ def clean_markdown_text(text: str) -> str:
         parts = re.split(r"^---\s*$", cleaned, flags=re.MULTILINE)
         if len(parts) >= 3:
             cleaned = "---".join(parts[2:]).strip()
+
+    # 連続する3つ以上の半角スペース・タブを単一スペースに正規化（テーブルの巨大空白崩れ対策）
+    lines = []
+    for line in cleaned.splitlines():
+        line_clean = re.sub(r"[ \t]{3,}", " ", line).strip()
+        lines.append(line_clean)
+    
+    cleaned = "\n".join(lines).strip()
     return cleaned
 
 
