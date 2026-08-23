@@ -72,7 +72,7 @@ python backend/scripts/download_models.py
 
 ---
 
-#### 1. 【🌟推奨・日本語高精度】 `intfloat/multilingual-e5-base` (768次元)
+#### 1. 【🌟多言語推奨・速度精度バランス】 `intfloat/multilingual-e5-base` (768次元 / MITライセンス: 商用利用OK)
 
 - **Hugging Face ページ**: [https://huggingface.co/intfloat/multilingual-e5-base/tree/main](https://huggingface.co/intfloat/multilingual-e5-base/tree/main)
 - **配置先フォルダ**: `models/multilingual-e5-base/`
@@ -110,7 +110,73 @@ models/multilingual-e5-base/
 
 ---
 
-#### 2. 【🏆最高峰SOTA・長文対応】 `BAAI/bge-m3` (1024次元)
+#### 2. 【🇯🇵日本語特化SOTA・高精度】 `cl-nagoya/sup-simcse-ja-large` (1024次元 / CC BY-SA 4.0: 商用利用OK)
+
+- **Hugging Face ページ**: [https://huggingface.co/cl-nagoya/sup-simcse-ja-large/tree/main](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/tree/main)
+- **配置先フォルダ**: `models/sup-simcse-ja-large/`
+
+**📂 必要な全ファイル構成（ディレクトリツリー）**:
+```text
+models/sup-simcse-ja-large/
+├── model.safetensors                 # [必須] モデル重み本体 (約1.3GB)
+├── config.json                       # [必須] モデル設定
+├── vocab.txt                         # [必須] 日本語語彙辞書
+├── tokenizer_config.json             # [必須] トークナイザー設定
+├── sentence_bert_config.json         # [必須] SentenceTransformers設定
+├── config_sentence_transformers.json # [必須] ST詳細設定
+├── modules.json                      # [必須] パイプライン構成定義
+└── 1_Pooling/
+    └── config.json                   # [必須] プーリング設定
+```
+
+**📥 各ファイルの個別ダウンロード直リンク**:
+| ファイルパス (配置先) | ダウンロードリンク |
+|---|---|
+| `models/sup-simcse-ja-large/model.safetensors` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/model.safetensors) |
+| `models/sup-simcse-ja-large/config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/config.json) |
+| `models/sup-simcse-ja-large/vocab.txt` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/vocab.txt) |
+| `models/sup-simcse-ja-large/tokenizer_config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/tokenizer_config.json) |
+| `models/sup-simcse-ja-large/sentence_bert_config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/sentence_bert_config.json) |
+| `models/sup-simcse-ja-large/config_sentence_transformers.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/config_sentence_transformers.json) |
+| `models/sup-simcse-ja-large/modules.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/modules.json) |
+| `models/sup-simcse-ja-large/1_Pooling/config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/1_Pooling/config.json) |
+
+---
+
+#### 3. 【🇯🇵日本語特化・高速版】 `cl-nagoya/sup-simcse-ja-base` (768次元 / CC BY-SA 4.0: 商用利用OK)
+
+- **Hugging Face ページ**: [https://huggingface.co/cl-nagoya/sup-simcse-ja-base/tree/main](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/tree/main)
+- **配置先フォルダ**: `models/sup-simcse-ja-base/`
+
+**📂 必要な全ファイル構成（ディレクトリツリー）**:
+```text
+models/sup-simcse-ja-base/
+├── model.safetensors                 # [必須] モデル重み本体 (約440MB)
+├── config.json                       # [必須] モデル設定
+├── vocab.txt                         # [必須] 日本語語彙辞書
+├── tokenizer_config.json             # [必須] トークナイザー設定
+├── sentence_bert_config.json         # [必須] SentenceTransformers設定
+├── config_sentence_transformers.json # [必須] ST詳細設定
+├── modules.json                      # [必須] パイプライン構成定義
+└── 1_Pooling/
+    └── config.json                   # [必須] プーリング設定
+```
+
+**📥 各ファイルの個別ダウンロード直リンク**:
+| ファイルパス (配置先) | ダウンロードリンク |
+|---|---|
+| `models/sup-simcse-ja-base/model.safetensors` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/model.safetensors) |
+| `models/sup-simcse-ja-base/config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/config.json) |
+| `models/sup-simcse-ja-base/vocab.txt` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/vocab.txt) |
+| `models/sup-simcse-ja-base/tokenizer_config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/tokenizer_config.json) |
+| `models/sup-simcse-ja-base/sentence_bert_config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/sentence_bert_config.json) |
+| `models/sup-simcse-ja-base/config_sentence_transformers.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/config_sentence_transformers.json) |
+| `models/sup-simcse-ja-base/modules.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/modules.json) |
+| `models/sup-simcse-ja-base/1_Pooling/config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/1_Pooling/config.json) |
+
+---
+
+#### 4. 【🏆最高峰多言語SOTA・長文対応】 `BAAI/bge-m3` (1024次元 / MITライセンス: 商用利用OK)
 
 - **Hugging Face ページ**: [https://huggingface.co/BAAI/bge-m3/tree/main](https://huggingface.co/BAAI/bge-m3/tree/main)
 - **配置先フォルダ**: `models/bge-m3/`
