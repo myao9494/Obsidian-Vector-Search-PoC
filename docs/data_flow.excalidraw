@@ -1,0 +1,259 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "index_title",
+      "type": "text",
+      "x": 80,
+      "y": 40,
+      "text": "【Index Flow & Differential Update】",
+      "fontSize": 18,
+      "fontFamily": 1,
+      "strokeColor": "#1971c2"
+    },
+    {
+      "id": "idx_step1",
+      "type": "rectangle",
+      "x": 80,
+      "y": 80,
+      "width": 160,
+      "height": 60,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#e7f5ff",
+      "fillStyle": "solid",
+      "roundness": { "type": 3 }
+    },
+    {
+      "id": "idx_step1_t",
+      "type": "text",
+      "x": 90,
+      "y": 95,
+      "text": "Vault Scan\n(*.md list)",
+      "fontSize": 14,
+      "fontFamily": 1
+    },
+    {
+      "id": "arr1",
+      "type": "arrow",
+      "x": 240,
+      "y": 110,
+      "width": 50,
+      "height": 0,
+      "points": [[0, 0], [50, 0]],
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "idx_step2",
+      "type": "rectangle",
+      "x": 290,
+      "y": 80,
+      "width": 180,
+      "height": 60,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#fff3bf",
+      "fillStyle": "solid",
+      "roundness": { "type": 3 }
+    },
+    {
+      "id": "idx_step2_t",
+      "type": "text",
+      "x": 300,
+      "y": 90,
+      "text": "Diff Check\n(mtime, size, sha256)",
+      "fontSize": 14,
+      "fontFamily": 1
+    },
+    {
+      "id": "arr2",
+      "type": "arrow",
+      "x": 470,
+      "y": 110,
+      "width": 50,
+      "height": 0,
+      "points": [[0, 0], [50, 0]],
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "idx_step3",
+      "type": "rectangle",
+      "x": 520,
+      "y": 80,
+      "width": 160,
+      "height": 60,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#d3f9d8",
+      "fillStyle": "solid",
+      "roundness": { "type": 3 }
+    },
+    {
+      "id": "idx_step3_t",
+      "type": "text",
+      "x": 530,
+      "y": 90,
+      "text": "Chunk & Embed\n(SentenceTransformer)",
+      "fontSize": 14,
+      "fontFamily": 1
+    },
+    {
+      "id": "arr3",
+      "type": "arrow",
+      "x": 680,
+      "y": 110,
+      "width": 50,
+      "height": 0,
+      "points": [[0, 0], [50, 0]],
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "idx_step4",
+      "type": "rectangle",
+      "x": 730,
+      "y": 80,
+      "width": 150,
+      "height": 60,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#ffe8cc",
+      "fillStyle": "solid",
+      "roundness": { "type": 3 }
+    },
+    {
+      "id": "idx_step4_t",
+      "type": "text",
+      "x": 740,
+      "y": 95,
+      "text": "SQLite Upsert\n(index.db)",
+      "fontSize": 14,
+      "fontFamily": 1
+    },
+    {
+      "id": "search_title",
+      "type": "text",
+      "x": 80,
+      "y": 200,
+      "text": "【Search Flow & Scoring】",
+      "fontSize": 18,
+      "fontFamily": 1,
+      "strokeColor": "#2b8a3e"
+    },
+    {
+      "id": "sch_step1",
+      "type": "rectangle",
+      "x": 80,
+      "y": 240,
+      "width": 180,
+      "height": 60,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#e7f5ff",
+      "fillStyle": "solid",
+      "roundness": { "type": 3 }
+    },
+    {
+      "id": "sch_step1_t",
+      "type": "text",
+      "x": 90,
+      "y": 255,
+      "text": "Query String\n(Doc / Chunk Mode)",
+      "fontSize": 14,
+      "fontFamily": 1
+    },
+    {
+      "id": "sarr1",
+      "type": "arrow",
+      "x": 260,
+      "y": 270,
+      "width": 50,
+      "height": 0,
+      "points": [[0, 0], [50, 0]],
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "sch_step2",
+      "type": "rectangle",
+      "x": 310,
+      "y": 240,
+      "width": 170,
+      "height": 60,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#d3f9d8",
+      "fillStyle": "solid",
+      "roundness": { "type": 3 }
+    },
+    {
+      "id": "sch_step2_t",
+      "type": "text",
+      "x": 320,
+      "y": 255,
+      "text": "Query Embedding\n(1x D float32)",
+      "fontSize": 14,
+      "fontFamily": 1
+    },
+    {
+      "id": "sarr2",
+      "type": "arrow",
+      "x": 480,
+      "y": 270,
+      "width": 50,
+      "height": 0,
+      "points": [[0, 0], [50, 0]],
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "sch_step3",
+      "type": "rectangle",
+      "x": 530,
+      "y": 240,
+      "width": 180,
+      "height": 60,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#f3f0ff",
+      "fillStyle": "solid",
+      "roundness": { "type": 3 }
+    },
+    {
+      "id": "sch_step3_t",
+      "type": "text",
+      "x": 540,
+      "y": 250,
+      "text": "NumPy Cosine Sim\n(scores = Matrix @ q)",
+      "fontSize": 14,
+      "fontFamily": 1
+    },
+    {
+      "id": "sarr3",
+      "type": "arrow",
+      "x": 710,
+      "y": 270,
+      "width": 50,
+      "height": 0,
+      "points": [[0, 0], [50, 0]],
+      "endArrowhead": "arrow"
+    },
+    {
+      "id": "sch_step4",
+      "type": "rectangle",
+      "x": 760,
+      "y": 240,
+      "width": 180,
+      "height": 60,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#fff3bf",
+      "fillStyle": "solid",
+      "roundness": { "type": 3 }
+    },
+    {
+      "id": "sch_step4_t",
+      "type": "text",
+      "x": 770,
+      "y": 250,
+      "text": "Top K + Context\n(Prev / Hit / Next)",
+      "fontSize": 14,
+      "fontFamily": 1
+    }
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff",
+    "gridSize": null
+  }
+}
