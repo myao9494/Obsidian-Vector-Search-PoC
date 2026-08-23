@@ -41,6 +41,8 @@ export function ModelSelector({ modelPath, setModelPath, modelStatus, setModelSt
     { label: '🌟 Multilingual E5 Base (多言語推奨・速度精度バランス, 768d, ~0.1s)', path: '/Users/mine/000_work/test/PoC_lag/models/multilingual-e5-base' },
     { label: '🇯🇵 Sup-SimCSE-JA Large (日本語特化SOTA・高精度, 1024d, ~0.3s)', path: '/Users/mine/000_work/test/PoC_lag/models/sup-simcse-ja-large' },
     { label: '🇯🇵 Sup-SimCSE-JA Base (日本語特化・高速, 768d, ~0.1s)', path: '/Users/mine/000_work/test/PoC_lag/models/sup-simcse-ja-base' },
+    { label: '🇯🇵 SBERT-Base-JA (日本語BERT定番・MIT, 768d, ~0.1s)', path: '/Users/mine/000_work/test/PoC_lag/models/sbert-base-ja' },
+    { label: '⚡ Static-Embedding-JA (超高速埋め込み・MIT, 1024d, ~0.01s)', path: '/Users/mine/000_work/test/PoC_lag/models/static-embedding-japanese' },
     { label: '🏆 BGE-M3 (最高峰多言語SOTA・長文対応, 1024d, ~1.4s)', path: '/Users/mine/000_work/test/PoC_lag/models/bge-m3' },
     { label: '🚀 Multilingual E5 Large (E5大型版, 1024d, ~0.4s)', path: '/Users/mine/000_work/test/PoC_lag/models/multilingual-e5-large' },
     { label: '⚡ Multilingual E5 Small (超高速・軽量, 384d, ~0.03s)', path: '/Users/mine/000_work/test/PoC_lag/models/multilingual-e5-small' },

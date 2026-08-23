@@ -13,9 +13,11 @@ from sentence_transformers import SentenceTransformer
 
 # ダウンロード対象モデルリスト (識別子, HuggingFaceリポジトリ名, 保存先フォルダ名)
 TARGET_MODELS = [
-    ("Multilingual E5 Base (🌟多言語推奨・速度精度バランス)", "intfloat/multilingual-e5-base", "multilingual-e5-base"),
+    ("Multilingual E5 Base (🌟多言語推奨・速度精度バランス・768d)", "intfloat/multilingual-e5-base", "multilingual-e5-base"),
     ("Sup-SimCSE-JA Large (🇯🇵日本語特化SOTA・高精度・1024d)", "cl-nagoya/sup-simcse-ja-large", "sup-simcse-ja-large"),
     ("Sup-SimCSE-JA Base (🇯🇵日本語特化・高速・768d)", "cl-nagoya/sup-simcse-ja-base", "sup-simcse-ja-base"),
+    ("SBERT-Base-JA (🇯🇵日本語文埋め込み定番・MIT・768d)", "colorfulscoop/sbert-base-ja", "sbert-base-ja"),
+    ("Static-Embedding-JA (⚡超高速CPU埋め込み・MIT・1024d)", "hotchpotch/static-embedding-japanese", "static-embedding-japanese"),
     ("BGE-M3 (🏆最高峰多言語SOTA・長文対応・1024d)", "BAAI/bge-m3", "bge-m3"),
     ("Multilingual E5 Small (⚡超高速・軽量・384d)", "intfloat/multilingual-e5-small", "multilingual-e5-small"),
 ]

@@ -15,8 +15,10 @@
    - 見出し・段落境界を尊重しつつ500〜800文字で分割（極小ノイズチャンクは除外）。
 4. **SQLite永続化 (DB)**: `<Vault>/.vector_search/index.db` に文書およびチャンク・Embeddingを保存。
 5. **ローカルEmbedding (Embedder)**: Sentence Transformersを使用し、ローカルパスからのみロード（完全オフライン・すべて商用利用OK）。
-   - **Sup-SimCSE-JA Large (1024d)**: 🇯🇵 日本語特化SOTAモデル（文単位の意味類似度・高精度） [CC BY-SA 4.0]
+   - **Sup-SimCSE-JA Large (1024d)**: 🇯🇵 日本語特化SOTAモデル（文単位の意味類似度・最高峰精度） [CC BY-SA 4.0]
    - **Sup-SimCSE-JA Base (768d)**: 🇯🇵 日本語特化高速モデル [CC BY-SA 4.0]
+   - **SBERT-Base-JA (768d)**: 🇯🇵 日本語BERT文埋め込み定番モデル [MIT]
+   - **Static-Embedding-JA (1024d)**: ⚡ 超高速CPU埋め込みモデル（~0.01s） [MIT]
    - **Multilingual E5 Base (768d)**: 🌟 多言語推奨・速度精度ベストバランス（~0.1s） [MIT]
    - **BGE-M3 (1024d)**: 🏆 最高峰多言語SOTAモデル（8192トークン長文対応） [MIT]
    - **Multilingual E5 Large (1024d)**: E5大型版（~0.4s） [MIT]

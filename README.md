@@ -176,7 +176,47 @@ models/sup-simcse-ja-base/
 
 ---
 
-#### 4. 【🏆最高峰多言語SOTA・長文対応】 `BAAI/bge-m3` (1024次元 / MITライセンス: 商用利用OK)
+#### 4. 【🇯🇵日本語BERT定番】 `colorfulscoop/sbert-base-ja` (768次元 / MITライセンス: 商用利用OK)
+
+- **Hugging Face ページ**: [https://huggingface.co/colorfulscoop/sbert-base-ja/tree/main](https://huggingface.co/colorfulscoop/sbert-base-ja/tree/main)
+- **配置先フォルダ**: `models/sbert-base-ja/`
+
+**📂 必要な全ファイル構成（ディレクトリツリー）**:
+```text
+models/sbert-base-ja/
+├── model.safetensors                 # [必須] モデル重み本体 (約440MB)
+├── config.json                       # [必須] モデル設定
+├── vocab.txt                         # [必須] 日本語語彙辞書
+├── tokenizer_config.json             # [必須] トークナイザー設定
+├── sentence_bert_config.json         # [必須] SentenceTransformers設定
+├── config_sentence_transformers.json # [必須] ST詳細設定
+├── modules.json                      # [必須] パイプライン構成定義
+└── 1_Pooling/
+    └── config.json                   # [必須] プーリング設定
+```
+
+**📥 各ファイルの個別ダウンロード直リンク**:
+| ファイルパス (配置先) | ダウンロードリンク |
+|---|---|
+| `models/sbert-base-ja/model.safetensors` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/model.safetensors) |
+| `models/sbert-base-ja/config.json` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/config.json) |
+| `models/sbert-base-ja/vocab.txt` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/vocab.txt) |
+| `models/sbert-base-ja/tokenizer_config.json` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/tokenizer_config.json) |
+| `models/sbert-base-ja/sentence_bert_config.json` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/sentence_bert_config.json) |
+| `models/sbert-base-ja/config_sentence_transformers.json` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/config_sentence_transformers.json) |
+| `models/sbert-base-ja/modules.json` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/modules.json) |
+| `models/sbert-base-ja/1_Pooling/config.json` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/1_Pooling/config.json) |
+
+---
+
+#### 5. 【⚡超高速CPU埋め込み】 `hotchpotch/static-embedding-japanese` (1024次元 / MITライセンス: 商用利用OK)
+
+- **Hugging Face ページ**: [https://huggingface.co/hotchpotch/static-embedding-japanese/tree/main](https://huggingface.co/hotchpotch/static-embedding-japanese/tree/main)
+- **配置先フォルダ**: `models/static-embedding-japanese/`
+
+---
+
+#### 6. 【🏆最高峰多言語SOTA・長文対応】 `BAAI/bge-m3` (1024次元 / MITライセンス: 商用利用OK)
 
 - **Hugging Face ページ**: [https://huggingface.co/BAAI/bge-m3/tree/main](https://huggingface.co/BAAI/bge-m3/tree/main)
 - **配置先フォルダ**: `models/bge-m3/`

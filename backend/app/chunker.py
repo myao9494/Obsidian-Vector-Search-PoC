@@ -45,6 +45,8 @@ def clean_markdown_text(text: str) -> str:
     for line in cleaned.splitlines():
         line_clean = re.sub(r"[ \t]{2,}", " ", line).strip()
         if not line_clean:
+            if lines and lines[-1] != "":
+                lines.append("")
             continue
         # メタデータ行のスキップ (例: created: 2026-01-11 ...)
         lower_line = line_clean.lower()
