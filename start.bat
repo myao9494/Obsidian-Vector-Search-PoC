@@ -38,16 +38,23 @@ if exist ".venv\Scripts\python.exe" (
 @rem 2. PYTHONPATH の設定
 set "PYTHONPATH=%~dp0backend"
 
-@rem 3. ブラウザを開く
-echo [INFO] Web UI (http://127.0.0.1:60000) をブラウザで開きます...
-start "" "http://127.0.0.1:60000"
+@rem 3. ポート 60000 を使用中の既存プロセスがあれば自動終了
+set "PORT=60000"
+for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr /r /c:":%PORT% "[ ]*LISTENING"') do (
+    echo [INFO] ポート %PORT% を使用中の既存プロセス (PID: %%a) を終了して再起動します...
+    taskkill /f /pid %%a >nul 2>nul
+)
 
-@rem 4. FastAPI サーバーの起動 (ポート 60000)
-echo [INFO] サーバーを起動します (Port: 60000)...
+@rem 4. ブラウザを開く
+echo [INFO] Web UI (http://127.0.0.1:%PORT%) をブラウザで開きます...
+start "" "http://127.0.0.1:%PORT%"
+
+@rem 5. FastAPI サーバーの起動 (ポート 60000)
+echo [INFO] サーバーを起動します (Port: %PORT%)...
 echo [INFO] 終了するには Ctrl + C を押してください。
 echo.
 
-"%PYTHON_CMD%" -m uvicorn app.main:app --host 127.0.0.1 --port 60000
+"%PYTHON_CMD%" -m uvicorn app.main:app --host 127.0.0.1 --port %PORT%
 
 if %errorlevel% neq 0 (
     echo.
