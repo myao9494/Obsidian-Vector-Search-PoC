@@ -20,19 +20,43 @@ class ChunkData:
 
 def clean_markdown_text(text: str) -> str:
     """
-    MarkdownテキストからYAML Frontmatter（--- ... ---）、過剰な空行、テーブルの大量空白パディングを除去する
+    MarkdownテキストからYAML Frontmatter、Excalidraw描画データ(%%...%%)、Base64文字列、長大URL、メタデータ行（created/updated等）、過剰な空行を除去・正規化する
     """
     cleaned = text.strip()
-    # YAML Frontmatterの除去
+    # 1. YAML Frontmatterの除去
     if cleaned.startswith("---"):
         parts = re.split(r"^---\s*$", cleaned, flags=re.MULTILINE)
         if len(parts) >= 3:
             cleaned = "---".join(parts[2:]).strip()
 
-    # 連続する3つ以上の半角スペース・タブを単一スペースに正規化（テーブルの巨大空白崩れ対策）
+    # 2. Obsidian / Excalidraw 内部コメントブロック %% ... %% の除去
+    cleaned = re.sub(r"%%.*?%%", "", cleaned, flags=re.DOTALL)
+
+    # 3. Markdownリンク [表示名](URL) -> 表示名 に変換 (長大なURLパラメータのチャンク化を防止)
+    cleaned = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", cleaned)
+    # 4. 独立したURL (http://... や https://...) を除去
+    cleaned = re.sub(r"https?://\S+", "", cleaned)
+    # 5. Obsidian画像埋め込み ![[...]] を除去
+    cleaned = re.sub(r"!\[\[[^\]]+\]\]", "", cleaned)
+
+    # 6. 行ごとのクレンジング
     lines = []
+    metadata_keys = ("created:", "updated:", "tags:", "aliases:", "date:", "id:", "pw:", "sha256:")
     for line in cleaned.splitlines():
-        line_clean = re.sub(r"[ \t]{3,}", " ", line).strip()
+        line_clean = re.sub(r"[ \t]{2,}", " ", line).strip()
+        if not line_clean:
+            continue
+        # メタデータ行のスキップ (例: created: 2026-01-11 ...)
+        lower_line = line_clean.lower()
+        if any(lower_line.startswith(k) for k in metadata_keys):
+            continue
+        # Excalidraw等のBase64バイナリ行・URLエンコードの残骸をスキップ
+        if re.match(r"^[A-Za-z0-9+/=]{30,}$", line_clean):
+            continue
+        if re.search(r"%[0-9A-Fa-f]{2}%[0-9A-Fa-f]{2}", line_clean) and len(line_clean) > 30:
+            continue
+        if re.match(r"^[:|\-\s#*>`%]+$", line_clean):
+            continue
         lines.append(line_clean)
     
     cleaned = "\n".join(lines).strip()

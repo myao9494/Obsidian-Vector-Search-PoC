@@ -107,14 +107,44 @@ def strip_markdown_to_plain(text: str) -> str:
     return t.strip()
 
 
+def is_natural_sentence(s: str) -> bool:
+    """文が意味のある自然言語文かどうかを判定する（メタデータ行、打鍵ミス、タイムスタンプを排除）"""
+    import re
+    lower = s.lower()
+    
+    # 1. メタデータプレフィックスの除外
+    metadata_keys = ("created:", "updated:", "tags:", "aliases:", "date:", "id:", "pw:", "sha256:")
+    if any(lower.startswith(k) for k in metadata_keys):
+        return False
+    
+    # 2. 日時・タイムスタンプのみの行を除外 (例: "2026-01-11 05:32:23", "1 時間 32 分 34 秒")
+    if re.match(r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}(?:\s+\d{1,2}:\d{1,2}(?::\d{1,2})?)?$", s):
+        return False
+    if re.match(r"^(?:\d+\s*(?:時間|分|秒)\s*)+$", s):
+        return False
+
+    # 3. 打鍵ミス・意味不明な子音連続の除外 (例: "mthk", "thm", "asdf" 等の母音なし英字ブロック)
+    # 英字が含まれる場合、母音（a, i, u, e, o）のない3文字以上の子音連続は除外
+    for word in re.findall(r"[a-zA-Z]{3,}", s):
+        if not re.search(r"[aiueoAIUEO]", word):
+            return False
+
+    # 4. セミコロンや記号が不自然に混ざった文字列の除外 (例: "あmthk;ま;thm")
+    if re.search(r"[;\/\\_]{2,}|[a-zA-Z]+;[a-zA-Z]+", s):
+        return False
+
+    return True
+
+
 def find_salient_sentence(
     text: str,
     query_vec: np.ndarray,
-    embedder: BaseEmbedder
+    embedder: BaseEmbedder,
+    min_sentence_score: float = 0.78
 ) -> Optional[str]:
     """
     チャンクテキストを文（Sentences）に分割し、クエリベクトルに最も強く反応（類似）した文を特定する。
-    Markdown記法やURLを除去した純粋な自然言語文のみを対象とする。
+    Markdown記法、メタデータ行、打鍵ミス行を除去し、スコアがしきい値（min_sentence_score）以上の文のみを抽出する。
     """
     import re
     if not text:
@@ -147,20 +177,27 @@ def find_salient_sentence(
         if re.search(r"\.(?:jp|com|net|html|php|aspx|ipynb|excalidraw)", cleaned_s, re.IGNORECASE):
             continue
 
+        # 自然言語妥当性チェック（メタデータ行、打鍵ミス行の排除）
+        if not is_natural_sentence(cleaned_s):
+            continue
+
         valid_sentences.append(cleaned_s)
 
     if not valid_sentences:
         return None
-    if len(valid_sentences) == 1:
-        return valid_sentences[0]
 
     try:
         s_vecs = embedder.encode_batch(valid_sentences, is_query=False)
         scores = s_vecs @ query_vec
         best_idx = int(np.argmax(scores))
+        best_score = float(scores[best_idx])
+        
+        # しきい値チェック: クエリと真に関連した文章でない場合は None を返却
+        if best_score < min_sentence_score:
+            return None
         return valid_sentences[best_idx]
     except Exception:
-        return valid_sentences[0]
+        return None
 
 
 class VectorSearcher:
