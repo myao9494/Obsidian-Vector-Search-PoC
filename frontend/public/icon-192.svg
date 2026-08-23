@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="40" fill="url(#bg)"/>
+  <circle cx="96" cy="96" r="64" fill="none" stroke="#334155" stroke-width="4"/>
+  <circle cx="96" cy="96" r="42" fill="none" stroke="#4f46e5" stroke-width="2" stroke-dasharray="4 4"/>
+  <!-- Compass Needle / Vector Spark -->
+  <polygon points="96,44 116,96 96,86" fill="url(#glow)"/>
+  <polygon points="96,148 76,96 96,106" fill="#38bdf8"/>
+  <polygon points="96,44 76,96 96,86" fill="#4338ca"/>
+  <polygon points="96,148 116,96 96,106" fill="#0284c7"/>
+  <circle cx="96" cy="96" r="6" fill="#ffffff"/>
+</svg>

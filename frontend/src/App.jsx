@@ -60,9 +60,9 @@ export function App() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span className="badge badge-poc">PoC Mode</span>
+          <span className="badge badge-poc">PWA Standalone</span>
           <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontFamily: 'JetBrains Mono' }}>
-            BE: :60000 / FE: :60001
+            Port: :60000
           </span>
         </div>
       </header>

@@ -227,7 +227,7 @@ if frontend_dist.exists():
     # assetsなどの静的ファイルをマウント
     app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
 
-    @app.get("/{full_path:path}")
+    @app.api_route("/{full_path:path}", methods=["GET", "HEAD"])
     async def serve_spa(full_path: str):
         file_path = frontend_dist / full_path
         if file_path.exists() and file_path.is_file():
