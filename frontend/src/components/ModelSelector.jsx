@@ -1,34 +1,42 @@
 /**
  * Embedding モデル選択・ロードコンポーネント
  * 仕様:
- * - ローカルモデルのパス指定、フォルダ選択ダイアログ呼び出し、モデルロードボタンを提供。
- * - MockEmbedderへの切り替え機能もサポート。
- * - ロード状態、モデル名、次元数をバッジ等で表示。
+ * - 2択ラジオ選択:
+ *   1. 👑 標準モデル (ruri-v3-310m) - 768d 高精度
+ *   2. ⚡ 超軽量モデル (ruri-v3-30m) - 256d 超高速 (Windows CPU推奨)
+ * - 各モデルのローカルパス入力ボックス ＋ 📁 参照ボタン
+ * - 選択切り替え時の自動ロード & ステータスバッジ表示
  */
 
 import React, { useState } from 'react';
-import { Cpu, FolderSearch, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Cpu, FolderSearch, CheckCircle2, AlertCircle, Zap, Crown, RefreshCw } from 'lucide-react';
 import { selectFolderDialog, loadModel } from '../api/client';
 
-export function ModelSelector({ modelPath, setModelPath, modelStatus, setModelStatus }) {
+export function ModelSelector({
+  selectedModelType,
+  setSelectedModelType,
+  standardPath,
+  setStandardPath,
+  lightPath,
+  setLightPath,
+  modelStatus,
+  setModelStatus,
+}) {
   const [loading, setLoading] = useState(false);
-  const [useMock, setUseMock] = useState(false);
 
-  const handleBrowse = async () => {
-    try {
-      const selected = await selectFolderDialog('ローカルモデルのフォルダを選択してください');
-      if (selected) {
-        setModelPath(selected);
-      }
-    } catch (err) {
-      alert(`フォルダ選択エラー: ${err.message}`);
+  // モデルの明示的ロード
+  const handleLoad = async (typeToLoad, pathToLoad) => {
+    const targetType = typeToLoad || selectedModelType;
+    const targetPath = pathToLoad || (targetType === 'standard' ? standardPath : lightPath);
+
+    if (!targetPath) {
+      alert('モデルのローカルパスを入力してください');
+      return;
     }
-  };
 
-  const handleLoad = async () => {
     try {
       setLoading(true);
-      const res = await loadModel(useMock ? 'mock' : modelPath, useMock);
+      const res = await loadModel(targetPath, false);
       setModelStatus(res);
     } catch (err) {
       alert(`モデルロードエラー: ${err.message}`);
@@ -37,19 +45,33 @@ export function ModelSelector({ modelPath, setModelPath, modelStatus, setModelSt
     }
   };
 
-  const PRESETS = [
-    { label: '👑 ruri-v3-310m (🇯🇵最高峰日本語SOTA・ModernBERT-Ja, 768d, ~0.08s)', path: '/Users/mine/000_work/test/PoC_lag/models/ruri-v3-310m' },
-    { label: '🌟 Multilingual E5 Base (多言語推奨・速度精度バランス, 768d, ~0.1s)', path: '/Users/mine/000_work/test/PoC_lag/models/multilingual-e5-base' },
-    { label: '🇯🇵 PKSHA SimCSE-JA (PKSHA製日本語特化・Apache2.0, 768d, ~0.1s)', path: '/Users/mine/000_work/test/PoC_lag/models/pksha-simcse-ja' },
-    { label: '🇯🇵 Sup-SimCSE-JA Large (日本語特化SOTA・高精度, 1024d, ~0.3s)', path: '/Users/mine/000_work/test/PoC_lag/models/sup-simcse-ja-large' },
-    { label: '🇯🇵 Sup-SimCSE-JA Base (日本語特化・高速, 768d, ~0.1s)', path: '/Users/mine/000_work/test/PoC_lag/models/sup-simcse-ja-base' },
-    { label: '🇯🇵 SBERT-Base-JA (日本語BERT定番・MIT, 768d, ~0.1s)', path: '/Users/mine/000_work/test/PoC_lag/models/sbert-base-ja' },
-    { label: '⚡ Static-Embedding-JA (超高速埋め込み・MIT, 1024d, ~0.01s)', path: '/Users/mine/000_work/test/PoC_lag/models/static-embedding-japanese' },
-    { label: '🏆 BGE-M3 (最高峰多言語SOTA・長文対応, 1024d, ~1.4s)', path: '/Users/mine/000_work/test/PoC_lag/models/bge-m3' },
-    { label: '🚀 Multilingual E5 Large (E5大型版, 1024d, ~0.4s)', path: '/Users/mine/000_work/test/PoC_lag/models/multilingual-e5-large' },
-    { label: '⚡ Multilingual E5 Small (超高速・軽量, 384d, ~0.03s)', path: '/Users/mine/000_work/test/PoC_lag/models/multilingual-e5-small' },
-    { label: '📁 カスタムパス指定', path: '' },
-  ];
+  // ラジオ選択切り替え時のハンドラー
+  const handleTypeChange = async (type) => {
+    setSelectedModelType(type);
+    const targetPath = type === 'standard' ? standardPath : lightPath;
+    if (targetPath) {
+      await handleLoad(type, targetPath);
+    }
+  };
+
+  // フォルダ参照
+  const handleBrowse = async (type) => {
+    try {
+      const selected = await selectFolderDialog('ローカルモデルのフォルダを選択してください');
+      if (selected) {
+        if (type === 'standard') {
+          setStandardPath(selected);
+        } else {
+          setLightPath(selected);
+        }
+        if (selectedModelType === type) {
+          await handleLoad(type, selected);
+        }
+      }
+    } catch (err) {
+      alert(`フォルダ選択エラー: ${err.message}`);
+    }
+  };
 
   return (
     <div className="card">
@@ -58,65 +80,127 @@ export function ModelSelector({ modelPath, setModelPath, modelStatus, setModelSt
         <span>Embedding モデル設定</span>
         {modelStatus?.loaded && (
           <span className="badge badge-success" style={{ marginLeft: 'auto' }}>
-            {modelStatus.is_mock ? 'Mock (384d)' : `Loaded (${modelStatus.dim}d)`}
+            <CheckCircle2 size={12} />
+            <span>ロード済 ({modelStatus.dim}d)</span>
           </span>
         )}
       </div>
 
-      <div className="form-group">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-          <label className="form-label" style={{ marginBottom: 0 }}>ローカルモデル選択</label>
-          <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={useMock}
-              onChange={(e) => setUseMock(e.target.checked)}
-            />
-            検証用Mockモデルを使用
-          </label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '12px' }}>
+        {/* モデルタイプ 2択ラジオ */}
+        <div className="model-radio-group">
+          {/* 1. 標準モデル */}
+          <div
+            className={`model-radio-card ${selectedModelType === 'standard' ? 'active' : ''}`}
+            onClick={() => handleTypeChange('standard')}
+          >
+            <div className="model-radio-header">
+              <input
+                type="radio"
+                name="modelType"
+                value="standard"
+                checked={selectedModelType === 'standard'}
+                onChange={() => handleTypeChange('standard')}
+                style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
+              />
+              <Crown size={16} color="#fbbf24" />
+              <div className="model-radio-title">👑 標準モデル (ruri-v3-310m)</div>
+              <span className="badge badge-poc" style={{ marginLeft: 'auto', fontSize: '10px' }}>
+                768d / 高精度
+              </span>
+            </div>
+            <div className="model-radio-desc">
+              最高峰の文脈把握力。Mac GPU (MPS) または高性能CPU環境に最適。
+            </div>
+
+            {/* パス入力 */}
+            <div
+              className="model-path-row"
+              onClick={(e) => e.stopPropagation()}
+              style={{ marginTop: '8px' }}
+            >
+              <input
+                type="text"
+                className="form-input"
+                placeholder="標準モデルのローカルパス"
+                value={standardPath}
+                onChange={(e) => setStandardPath(e.target.value)}
+                style={{ fontSize: '12px', padding: '6px 10px' }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => handleBrowse('standard')}
+                style={{ padding: '6px 10px' }}
+                title="フォルダを参照"
+              >
+                <FolderSearch size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* 2. 超軽量モデル */}
+          <div
+            className={`model-radio-card ${selectedModelType === 'light' ? 'active' : ''}`}
+            onClick={() => handleTypeChange('light')}
+          >
+            <div className="model-radio-header">
+              <input
+                type="radio"
+                name="modelType"
+                value="light"
+                checked={selectedModelType === 'light'}
+                onChange={() => handleTypeChange('light')}
+                style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
+              />
+              <Zap size={16} color="#38bdf8" />
+              <div className="model-radio-title">⚡ 超軽量モデル (ruri-v3-30m)</div>
+              <span className="badge badge-poc" style={{ marginLeft: 'auto', fontSize: '10px', borderColor: '#38bdf8', color: '#38bdf8' }}>
+                256d / 超高速 (~60ms)
+              </span>
+            </div>
+            <div className="model-radio-desc">
+              わずか 30M パラメータ（極小サイズ）。会社の Windows 一般CPU環境でサクサク動作。
+            </div>
+
+            {/* パス入力 */}
+            <div
+              className="model-path-row"
+              onClick={(e) => e.stopPropagation()}
+              style={{ marginTop: '8px' }}
+            >
+              <input
+                type="text"
+                className="form-input"
+                placeholder="超軽量モデルのローカルパス"
+                value={lightPath}
+                onChange={(e) => setLightPath(e.target.value)}
+                style={{ fontSize: '12px', padding: '6px 10px' }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => handleBrowse('light')}
+                style={{ padding: '6px 10px' }}
+                title="フォルダを参照"
+              >
+                <FolderSearch size={14} />
+              </button>
+            </div>
+          </div>
         </div>
 
-        {!useMock && (
-          <select
-            className="input-text"
-            style={{ marginBottom: '8px', width: '100%', cursor: 'pointer' }}
-            value={PRESETS.some(p => p.path === modelPath) ? modelPath : ''}
-            onChange={(e) => {
-              if (e.target.value) setModelPath(e.target.value);
-            }}
-          >
-            {PRESETS.map((p, idx) => (
-              <option key={idx} value={p.path}>{p.label}</option>
-            ))}
-          </select>
-        )}
-
-        <div className="input-row">
-          <input
-            type="text"
-            className="input-text"
-            placeholder="/path/to/models/embedding-model"
-            value={useMock ? 'Mock Embedder (オフライン高速検証用)' : modelPath}
-            onChange={(e) => setModelPath(e.target.value)}
-            disabled={useMock}
-          />
-          {!useMock && (
-            <button
-              className="btn btn-secondary"
-              onClick={handleBrowse}
-              disabled={loading}
-            >
-              <FolderSearch size={16} />
-              <span>選択</span>
-            </button>
-          )}
+        {/* 再ロードボタン */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
           <button
+            type="button"
             className="btn btn-primary"
-            onClick={handleLoad}
-            disabled={loading || (!useMock && !modelPath)}
+            onClick={() => handleLoad()}
+            disabled={loading}
+            style={{ padding: '6px 14px', fontSize: '12px' }}
           >
-            <CheckCircle2 size={16} />
-            <span>{loading ? 'ロード中...' : 'Load Model'}</span>
+            <RefreshCw size={14} className={loading ? 'spin' : ''} />
+            <span>{loading ? 'モデルをロード中...' : '選択モデルを適用・再ロード'}</span>
           </button>
         </div>
       </div>

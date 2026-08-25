@@ -666,3 +666,57 @@ code, pre {
   line-height: 1.5;
 }
 
+/* 👑⚡ モデル2択ラジオボタングループ */
+.model-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.model-radio-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.model-radio-card:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.model-radio-card.active {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: #818cf8;
+  box-shadow: 0 0 0 1px #818cf8;
+}
+
+.model-radio-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.model-radio-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.model-radio-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  margin-left: 24px;
+}
+
+.model-path-row {
+  display: flex;
+  gap: 6px;
+  margin-left: 24px;
+}
+
+
