@@ -30,15 +30,17 @@ class DocumentMetadata:
 
 def extract_title(text: str, file_stem: str) -> str:
     """
-    本文からH1タイトル（# タイトル）を抽出する。
-    見つからない場合はファイル名（拡張子なし）を返す。
+    Obsidianの仕様に基づき、ファイル名（file_stem）を主タイトルとして保持し、
+    本文にH1見出しがある場合は「ファイル名 - 見出し」として抽出する。
     """
     for line in text.splitlines():
         line_strip = line.strip()
         if line_strip.startswith("# "):
-            title = line_strip[2:].strip()
-            if title:
-                return title
+            h1 = line_strip[2:].strip()
+            if h1 and h1.lower() != file_stem.lower():
+                return f"{file_stem} - {h1}"
+            elif h1:
+                return h1
     return file_stem
 
 

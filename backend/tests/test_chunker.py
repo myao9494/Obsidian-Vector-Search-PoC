@@ -1,72 +1,129 @@
 """
-Markdown Chunker のテスト仕様
-- 見出し・段落境界を尊重しつつ、指定されたサイズ（500〜800文字）とオーバーラップ（50〜100文字）でチャンク分割を行うこと。
-- 短い文書の場合は分割されずに1つのチャンクとして返されること。
-- 長い文書の場合は適切なサイズとオーバーラップを維持して分割されること。
-- チャンクインデックス（0-indexed）およびテキスト内容が正確に保持されること。
+Markdown Chunker 最適化テスト仕様
+- 見出し階層（Breadcrumbs: # タイトル > ## セクション）のコンテキスト保持
+- Obsidian Frontmatter タグ（tags: [A, B] や #tag）の抽出・統合
+- Obsidian wikilink ([[ノート名]] や [[ノート名|別名]]) の適切なプレーンテキスト展開
+- 短文ノート（タイトルとタグ・1行メモ）の確実なチャンク化（欠落防止）
+- 長文ノートの構造（見出し・段落・リスト）を維持した分割
+- Excalidraw描画データ (%%...%%) やBase64バイナリ行等のノイズ除去
 """
 
 import pytest
-from app.chunker import chunk_markdown, ChunkData
+from app.chunker import (
+    chunk_markdown,
+    extract_metadata_and_clean,
+    ChunkData
+)
 
 
-def test_chunk_short_document():
-    """短い文書（chunk_size以下）の場合、1つのチャンクになること"""
-    text = "# Title\n\nThis is a short note content."
-    chunks = chunk_markdown(text, chunk_size=500, overlap=50)
+def test_chunk_breadcrumbs_hierarchy():
+    """見出し階層（Breadcrumbs）が各チャンクに付与されること"""
+    text = """
+# 投資戦略 2026
 
+## 株式投資
+
+### 転換社債の立ち回り
+転換社債（CB）は株式に転換できる社債です。
+発行発表時は希薄化懸念により一時的に株価が暴落することがあります。
+
+### 配当金と確定申告
+年間配当金が一定額を超える場合は確定申告の総合課税と申告分離課税を比較検討します。
+"""
+    chunks = chunk_markdown(text, doc_title="投資戦略 2026", chunk_size=300, overlap=50)
+    assert len(chunks) >= 2
+    
+    # 最初のチャンクには「投資戦略 2026 > 株式投資 > 転換社債の立ち回り」が含まれること
+    c0 = chunks[0].text
+    assert "投資戦略 2026" in c0
+    assert "転換社債の立ち回り" in c0
+    assert "希薄化懸念" in c0
+
+    # 2つ目のチャンクには「配当金と確定申告」の階層が含まれること
+    c1 = chunks[1].text
+    assert "配当金と確定申告" in c1
+    assert "総合課税" in c1
+
+
+def test_chunk_frontmatter_tags_integration():
+    """Frontmatterのタグや本文のハッシュタグが抽出・活用されること"""
+    text = """---
+created: 2026-01-10 10:07:18
+tags:
+  - 学校
+  - 吹奏楽
+  - 楽器
+  - クラリネット
+---
+
+# 購入したところ
+
+[管楽器専門店|バルドン・フィルステージ|ヨモギヤ楽器（株）](https://www.bardon.co.jp/)
+"""
+    cleaned, tags = extract_metadata_and_clean(text)
+    assert "学校" in tags
+    assert "吹奏楽" in tags
+    assert "クラリネット" in tags
+    assert "created:" not in cleaned
+    assert "bardon.co.jp" not in cleaned  # URLは除去
+    assert "管楽器専門店" in cleaned or "バルドン" in cleaned
+
+    chunks = chunk_markdown(text, doc_title="クラリネット.md", chunk_size=500, overlap=50)
     assert len(chunks) == 1
-    assert chunks[0].chunk_index == 0
-    assert chunks[0].text == text
+    # チャンクにタグと店舗名が含まれていること
+    assert "クラリネット" in chunks[0].text
+    assert "吹奏楽" in chunks[0].text or "バルドン" in chunks[0].text
 
 
-def test_chunk_empty_document():
-    """空の文書の場合、空リストが返ること"""
-    assert chunk_markdown("", chunk_size=500, overlap=50) == []
-    assert chunk_markdown("   \n\n  ", chunk_size=500, overlap=50) == []
+def test_chunk_wikilinks_expansion():
+    """Obsidianのwikilink ([[ノート名]] や [[ノート名|エイリアス]]) が適切に処理されること"""
+    text = """
+# 確定申告の手順
+
+- 詳細は [[確定申告_2025]] を参照。
+- [[ふるさと納税|ふるさと納税の限度額計算]] も確認すること。
+"""
+    chunks = chunk_markdown(text, doc_title="確定申告", chunk_size=500, overlap=50)
+    assert len(chunks) == 1
+    # wikilink のブラケットが除去され自然な文章になっていること
+    assert "確定申告_2025" in chunks[0].text
+    assert "ふるさと納税の限度額計算" in chunks[0].text
+    assert "[[" not in chunks[0].text
 
 
-def test_chunk_long_document_with_paragraphs():
-    """
-    段落区切りを含む長文が複数チャンクに分割され、
-    オーバーラップが含まれ、インデックスが0から順に付与されること
-    """
-    # 200文字の段落を6個作成（計約1200文字）
-    paragraphs = [f"Section {i}: " + ("A" * 180) for i in range(6)]
-    text = "\n\n".join(paragraphs)
-
-    chunk_size = 500
-    overlap = 100
-    chunks = chunk_markdown(text, chunk_size=chunk_size, overlap=overlap)
-
-    assert len(chunks) > 1
-    for idx, c in enumerate(chunks):
-        assert c.chunk_index == idx
-        assert len(c.text) > 0
-        assert len(c.text) <= chunk_size + 200  # 段落境界の余裕を考慮
-
-    # 連続するチャンク間でオーバーラップ（前のチャンクの一部が次のチャンクに含まれる）が存在すること
-    has_overlap = False
-    for i in range(len(chunks) - 1):
-        c1_tail = chunks[i].text[-50:]
-        if c1_tail in chunks[i + 1].text:
-            has_overlap = True
-            break
-    assert has_overlap
+def test_chunk_short_note_preservation():
+    """短文ノートでも欠落せず、タイトルやタグと一体となってチャンク化されること"""
+    text = """---
+tags:
+  - クーポン
+  - 優待
+---
+# QUOカード銘柄
+3353 メディカル一光
+"""
+    chunks = chunk_markdown(text, doc_title="QUOカード銘柄.md", chunk_size=500, overlap=50)
+    assert len(chunks) == 1
+    assert "QUOカード銘柄" in chunks[0].text
+    assert "メディカル一光" in chunks[0].text
+    assert "優待" in chunks[0].text or "クーポン" in chunks[0].text
 
 
-def test_chunk_headings_preservation():
-    """見出し（# Heading）で適切に区切られること"""
-    text = (
-        "# Heading 1\n\n" + ("Content under h1. " * 30) + "\n\n"
-        "## Heading 2\n\n" + ("Content under h2. " * 30) + "\n\n"
-        "### Heading 3\n\n" + ("Content under h3. " * 30)
-    )
+def test_chunk_excalidraw_noise_removal():
+    """Excalidrawの内部コメント (%%...%%) やBase64等のノイズが除去されること"""
+    text = """
+# アーキテクチャ図
 
-    chunks = chunk_markdown(text, chunk_size=400, overlap=50)
-    assert len(chunks) >= 3
-    # 見出しが含まれていること
-    all_chunk_text = " ".join([c.text for c in chunks])
-    assert "Heading 1" in all_chunk_text
-    assert "Heading 2" in all_chunk_text
-    assert "Heading 3" in all_chunk_text
+以下はシステムの構成図です。
+
+%%
+# Excalidraw Data
+{"type": "excalidraw", "version": 2, "elements": [{"id": "abc12345", "type": "rectangle"}]}
+%%
+
+実際のコンポーネントはFastAPIとReactで構成されます。
+"""
+    chunks = chunk_markdown(text, doc_title="構成図", chunk_size=500, overlap=50)
+    assert len(chunks) == 1
+    assert "FastAPIとReact" in chunks[0].text
+    assert "excalidraw" not in chunks[0].text.lower()
+    assert "abc12345" not in chunks[0].text

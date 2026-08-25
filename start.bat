@@ -8,6 +8,7 @@ setlocal enabledelayedexpansion
 
 set PYTHONUTF8=1
 set PYTHONIOENCODING=utf-8
+set KMP_DUPLICATE_LIB_OK=TRUE
 
 echo ==============================================================================
 echo   Obsidian Vector Search PoC を起動しています...

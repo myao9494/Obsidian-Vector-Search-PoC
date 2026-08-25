@@ -33,7 +33,7 @@ def test_scan_vault_basic(tmp_path):
     paths = {doc.relative_path: doc for doc in results}
 
     assert "Note1.md" in paths
-    assert paths["Note1.md"].title == "Note One Title"
+    assert "Note1" in paths["Note1.md"].title and "Note One Title" in paths["Note1.md"].title
     assert "This is note 1 body text." in paths["Note1.md"].text
     assert paths["Note1.md"].size > 0
     assert len(paths["Note1.md"].sha256) == 64

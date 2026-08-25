@@ -67,8 +67,9 @@ python backend/scripts/download_models.py
 社内のセキュリティやプロキシ制限等でスクリプトが使えない場合は、ブラウザで Hugging Face の **`Files and versions`** ページを開き、下表の**すべてのファイル**をダウンロードして指定のフォルダ構造通りに配置してください。
 
 > ⚠️ **重要（配置上の注意点）**
-> - `1_Pooling` や `2_Normalize` は、モデルフォルダ直下に**サブフォルダを作成**し、その中に `config.json` を配置してください。
-> - ファイルが1つでも欠けていると Sentence Transformers の初期化エラーとなりますので、必ず全ファイルを揃えてください。
+> - `1_Pooling` や `2_Dense`, `0_StaticEmbedding` は、モデルフォルダ直下に**サブフォルダを作成**し、その中に各ファイルを配置してください。
+> - モデルの重みファイルについて：Hugging Face上で `pytorch_model.bin` として提供されているモデル（PKSHA, Sup-SimCSE, SBERT, BGE-M3など）と `model.safetensors` で提供されているモデル（E5など）があります。**どちらの形式でも SentenceTransformers は自動判別して問題なく動作します**。
+> - ファイルが1つでも欠けていると初期化エラーとなるため、指定のファイルを揃えてください。
 
 ---
 
@@ -84,14 +85,13 @@ models/multilingual-e5-base/
 ├── config.json                       # [必須] モデル設定ファイル
 ├── tokenizer.json                    # [必須] トークナイザー定義
 ├── tokenizer_config.json             # [必須] トークナイザー設定
+├── sentencepiece.bpe.model           # [必須] SentencePiece辞書
 ├── sentence_bert_config.json         # [必須] SentenceTransformers設定
 ├── config_sentence_transformers.json # [必須] ST詳細設定
 ├── modules.json                      # [必須] パイプライン構成定義
 ├── special_tokens_map.json           # [必須] 特殊トークンマップ
-├── 1_Pooling/
-│   └── config.json                   # [必須] プーリング設定 (1_Pooling フォルダを作成して中に入れる)
-└── 2_Normalize/
-    └── config.json                   # [必須] 正規化設定 (2_Normalize フォルダを作成して中に入れる)
+└── 1_Pooling/
+    └── config.json                   # [必須] プーリング設定 (1_Pooling フォルダを作成して中に入れる)
 ```
 
 **📥 各ファイルの個別ダウンロード直リンク**:
@@ -101,12 +101,12 @@ models/multilingual-e5-base/
 | `models/multilingual-e5-base/config.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/config.json) |
 | `models/multilingual-e5-base/tokenizer.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/tokenizer.json) |
 | `models/multilingual-e5-base/tokenizer_config.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/tokenizer_config.json) |
+| `models/multilingual-e5-base/sentencepiece.bpe.model` | [Download](https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/sentencepiece.bpe.model) |
 | `models/multilingual-e5-base/sentence_bert_config.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/sentence_bert_config.json) |
 | `models/multilingual-e5-base/config_sentence_transformers.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/config_sentence_transformers.json) |
 | `models/multilingual-e5-base/modules.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/modules.json) |
 | `models/multilingual-e5-base/special_tokens_map.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/special_tokens_map.json) |
 | `models/multilingual-e5-base/1_Pooling/config.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/1_Pooling/config.json) |
-| `models/multilingual-e5-base/2_Normalize/config.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-base/resolve/main/2_Normalize/config.json) |
 
 #### 2. 【🇯🇵PKSHA製日本語特化】 `pkshatech/simcse-ja-bert-base-clcmlp` (768次元 / Apache 2.0: 商用利用OK)
 
@@ -116,33 +116,35 @@ models/multilingual-e5-base/
 **📂 必要な全ファイル構成（ディレクトリツリー）**:
 ```text
 models/pksha-simcse-ja/
-├── model.safetensors                 # [必須] モデル重み本体 (約440MB)
+├── pytorch_model.bin                 # [必須] モデル重み本体 (約445MB)
 ├── config.json                       # [必須] モデル設定
 ├── vocab.txt                         # [必須] 日本語語彙辞書
 ├── tokenizer_config.json             # [必須] トークナイザー設定
 ├── sentence_bert_config.json         # [必須] SentenceTransformers設定
 ├── config_sentence_transformers.json # [必須] ST詳細設定
 ├── modules.json                      # [必須] パイプライン構成定義
+├── special_tokens_map.json           # [必須] 特殊トークンマップ
 ├── 1_Pooling/
 │   └── config.json                   # [必須] プーリング設定
 └── 2_Dense/
     ├── config.json                   # [必須] Dense層設定
-    └── model.safetensors             # [必須] Dense層重み
+    └── pytorch_model.bin             # [必須] Dense層重み (約2.36MB)
 ```
 
 **📥 各ファイルの個別ダウンロード直リンク**:
 | ファイルパス (配置先) | ダウンロードリンク |
 |---|---|
-| `models/pksha-simcse-ja/model.safetensors` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/model.safetensors) |
+| `models/pksha-simcse-ja/pytorch_model.bin` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/pytorch_model.bin) |
 | `models/pksha-simcse-ja/config.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/config.json) |
 | `models/pksha-simcse-ja/vocab.txt` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/vocab.txt) |
 | `models/pksha-simcse-ja/tokenizer_config.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/tokenizer_config.json) |
 | `models/pksha-simcse-ja/sentence_bert_config.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/sentence_bert_config.json) |
 | `models/pksha-simcse-ja/config_sentence_transformers.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/config_sentence_transformers.json) |
 | `models/pksha-simcse-ja/modules.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/modules.json) |
+| `models/pksha-simcse-ja/special_tokens_map.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/special_tokens_map.json) |
 | `models/pksha-simcse-ja/1_Pooling/config.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/1_Pooling/config.json) |
 | `models/pksha-simcse-ja/2_Dense/config.json` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/2_Dense/config.json) |
-| `models/pksha-simcse-ja/2_Dense/model.safetensors` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/2_Dense/model.safetensors) |
+| `models/pksha-simcse-ja/2_Dense/pytorch_model.bin` | [Download](https://huggingface.co/pkshatech/simcse-ja-bert-base-clcmlp/resolve/main/2_Dense/pytorch_model.bin) |
 
 ---
 
@@ -154,13 +156,14 @@ models/pksha-simcse-ja/
 **📂 必要な全ファイル構成（ディレクトリツリー）**:
 ```text
 models/sup-simcse-ja-large/
-├── model.safetensors                 # [必須] モデル重み本体 (約1.3GB)
+├── pytorch_model.bin                 # [必須] モデル重み本体 (約1.3GB)
 ├── config.json                       # [必須] モデル設定
 ├── vocab.txt                         # [必須] 日本語語彙辞書
 ├── tokenizer_config.json             # [必須] トークナイザー設定
 ├── sentence_bert_config.json         # [必須] SentenceTransformers設定
 ├── config_sentence_transformers.json # [必須] ST詳細設定
 ├── modules.json                      # [必須] パイプライン構成定義
+├── special_tokens_map.json           # [必須] 特殊トークンマップ
 └── 1_Pooling/
     └── config.json                   # [必須] プーリング設定
 ```
@@ -168,18 +171,19 @@ models/sup-simcse-ja-large/
 **📥 各ファイルの個別ダウンロード直リンク**:
 | ファイルパス (配置先) | ダウンロードリンク |
 |---|---|
-| `models/sup-simcse-ja-large/model.safetensors` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/model.safetensors) |
+| `models/sup-simcse-ja-large/pytorch_model.bin` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/pytorch_model.bin) |
 | `models/sup-simcse-ja-large/config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/config.json) |
 | `models/sup-simcse-ja-large/vocab.txt` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/vocab.txt) |
 | `models/sup-simcse-ja-large/tokenizer_config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/tokenizer_config.json) |
 | `models/sup-simcse-ja-large/sentence_bert_config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/sentence_bert_config.json) |
 | `models/sup-simcse-ja-large/config_sentence_transformers.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/config_sentence_transformers.json) |
 | `models/sup-simcse-ja-large/modules.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/modules.json) |
+| `models/sup-simcse-ja-large/special_tokens_map.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/special_tokens_map.json) |
 | `models/sup-simcse-ja-large/1_Pooling/config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-large/resolve/main/1_Pooling/config.json) |
 
 ---
 
-#### 3. 【🇯🇵日本語特化・高速版】 `cl-nagoya/sup-simcse-ja-base` (768次元 / CC BY-SA 4.0: 商用利用OK)
+#### 4. 【🇯🇵日本語特化・高速版】 `cl-nagoya/sup-simcse-ja-base` (768次元 / CC BY-SA 4.0: 商用利用OK)
 
 - **Hugging Face ページ**: [https://huggingface.co/cl-nagoya/sup-simcse-ja-base/tree/main](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/tree/main)
 - **配置先フォルダ**: `models/sup-simcse-ja-base/`
@@ -187,13 +191,14 @@ models/sup-simcse-ja-large/
 **📂 必要な全ファイル構成（ディレクトリツリー）**:
 ```text
 models/sup-simcse-ja-base/
-├── model.safetensors                 # [必須] モデル重み本体 (約440MB)
+├── pytorch_model.bin                 # [必須] モデル重み本体 (約440MB)
 ├── config.json                       # [必須] モデル設定
 ├── vocab.txt                         # [必須] 日本語語彙辞書
 ├── tokenizer_config.json             # [必須] トークナイザー設定
 ├── sentence_bert_config.json         # [必須] SentenceTransformers設定
 ├── config_sentence_transformers.json # [必須] ST詳細設定
 ├── modules.json                      # [必須] パイプライン構成定義
+├── special_tokens_map.json           # [必須] 特殊トークンマップ
 └── 1_Pooling/
     └── config.json                   # [必須] プーリング設定
 ```
@@ -201,18 +206,19 @@ models/sup-simcse-ja-base/
 **📥 各ファイルの個別ダウンロード直リンク**:
 | ファイルパス (配置先) | ダウンロードリンク |
 |---|---|
-| `models/sup-simcse-ja-base/model.safetensors` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/model.safetensors) |
+| `models/sup-simcse-ja-base/pytorch_model.bin` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/pytorch_model.bin) |
 | `models/sup-simcse-ja-base/config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/config.json) |
 | `models/sup-simcse-ja-base/vocab.txt` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/vocab.txt) |
 | `models/sup-simcse-ja-base/tokenizer_config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/tokenizer_config.json) |
 | `models/sup-simcse-ja-base/sentence_bert_config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/sentence_bert_config.json) |
 | `models/sup-simcse-ja-base/config_sentence_transformers.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/config_sentence_transformers.json) |
 | `models/sup-simcse-ja-base/modules.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/modules.json) |
+| `models/sup-simcse-ja-base/special_tokens_map.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/special_tokens_map.json) |
 | `models/sup-simcse-ja-base/1_Pooling/config.json` | [Download](https://huggingface.co/cl-nagoya/sup-simcse-ja-base/resolve/main/1_Pooling/config.json) |
 
 ---
 
-#### 4. 【🇯🇵日本語BERT定番】 `colorfulscoop/sbert-base-ja` (768次元 / MITライセンス: 商用利用OK)
+#### 5. 【🇯🇵日本語BERT定番】 `colorfulscoop/sbert-base-ja` (768次元 / MITライセンス: 商用利用OK)
 
 - **Hugging Face ページ**: [https://huggingface.co/colorfulscoop/sbert-base-ja/tree/main](https://huggingface.co/colorfulscoop/sbert-base-ja/tree/main)
 - **配置先フォルダ**: `models/sbert-base-ja/`
@@ -220,13 +226,14 @@ models/sup-simcse-ja-base/
 **📂 必要な全ファイル構成（ディレクトリツリー）**:
 ```text
 models/sbert-base-ja/
-├── model.safetensors                 # [必須] モデル重み本体 (約440MB)
+├── pytorch_model.bin                 # [必須] モデル重み本体 (約440MB)
 ├── config.json                       # [必須] モデル設定
-├── vocab.txt                         # [必須] 日本語語彙辞書
+├── spm.model                         # [必須] SentencePiece辞書モデル
 ├── tokenizer_config.json             # [必須] トークナイザー設定
 ├── sentence_bert_config.json         # [必須] SentenceTransformers設定
 ├── config_sentence_transformers.json # [必須] ST詳細設定
 ├── modules.json                      # [必須] パイプライン構成定義
+├── special_tokens_map.json           # [必須] 特殊トークンマップ
 └── 1_Pooling/
     └── config.json                   # [必須] プーリング設定
 ```
@@ -234,25 +241,44 @@ models/sbert-base-ja/
 **📥 各ファイルの個別ダウンロード直リンク**:
 | ファイルパス (配置先) | ダウンロードリンク |
 |---|---|
-| `models/sbert-base-ja/model.safetensors` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/model.safetensors) |
+| `models/sbert-base-ja/pytorch_model.bin` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/pytorch_model.bin) |
 | `models/sbert-base-ja/config.json` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/config.json) |
-| `models/sbert-base-ja/vocab.txt` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/vocab.txt) |
+| `models/sbert-base-ja/spm.model` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/spm.model) |
 | `models/sbert-base-ja/tokenizer_config.json` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/tokenizer_config.json) |
 | `models/sbert-base-ja/sentence_bert_config.json` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/sentence_bert_config.json) |
 | `models/sbert-base-ja/config_sentence_transformers.json` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/config_sentence_transformers.json) |
 | `models/sbert-base-ja/modules.json` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/modules.json) |
+| `models/sbert-base-ja/special_tokens_map.json` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/special_tokens_map.json) |
 | `models/sbert-base-ja/1_Pooling/config.json` | [Download](https://huggingface.co/colorfulscoop/sbert-base-ja/resolve/main/1_Pooling/config.json) |
 
 ---
 
-#### 5. 【⚡超高速CPU埋め込み】 `hotchpotch/static-embedding-japanese` (1024次元 / MITライセンス: 商用利用OK)
+#### 6. 【⚡超高速CPU埋め込み】 `hotchpotch/static-embedding-japanese` (1024次元 / MITライセンス: 商用利用OK)
 
 - **Hugging Face ページ**: [https://huggingface.co/hotchpotch/static-embedding-japanese/tree/main](https://huggingface.co/hotchpotch/static-embedding-japanese/tree/main)
 - **配置先フォルダ**: `models/static-embedding-japanese/`
 
+**📂 必要な全ファイル構成（ディレクトリツリー）**:
+```text
+models/static-embedding-japanese/
+├── config_sentence_transformers.json # [必須] ST設定
+├── modules.json                      # [必須] パイプライン構成定義
+└── 0_StaticEmbedding/
+    ├── model.safetensors             # [必須] 埋め込み重み本体
+    └── tokenizer.json                # [必須] トークナイザー定義
+```
+
+**📥 各ファイルの個別ダウンロード直リンク**:
+| ファイルパス (配置先) | ダウンロードリンク |
+|---|---|
+| `models/static-embedding-japanese/config_sentence_transformers.json` | [Download](https://huggingface.co/hotchpotch/static-embedding-japanese/resolve/main/config_sentence_transformers.json) |
+| `models/static-embedding-japanese/modules.json` | [Download](https://huggingface.co/hotchpotch/static-embedding-japanese/resolve/main/modules.json) |
+| `models/static-embedding-japanese/0_StaticEmbedding/model.safetensors` | [Download](https://huggingface.co/hotchpotch/static-embedding-japanese/resolve/main/0_StaticEmbedding/model.safetensors) |
+| `models/static-embedding-japanese/0_StaticEmbedding/tokenizer.json` | [Download](https://huggingface.co/hotchpotch/static-embedding-japanese/resolve/main/0_StaticEmbedding/tokenizer.json) |
+
 ---
 
-#### 6. 【🏆最高峰多言語SOTA・長文対応】 `BAAI/bge-m3` (1024次元 / MITライセンス: 商用利用OK)
+#### 7. 【🏆最高峰多言語SOTA・長文対応】 `BAAI/bge-m3` (1024次元 / MITライセンス: 商用利用OK)
 
 - **Hugging Face ページ**: [https://huggingface.co/BAAI/bge-m3/tree/main](https://huggingface.co/BAAI/bge-m3/tree/main)
 - **配置先フォルダ**: `models/bge-m3/`
@@ -260,37 +286,36 @@ models/sbert-base-ja/
 **📂 必要な全ファイル構成（ディレクトリツリー）**:
 ```text
 models/bge-m3/
-├── model.safetensors                 # [必須] モデル重み本体 (約2.2GB)
+├── pytorch_model.bin                 # [必須] モデル重み本体 (約2.2GB)
 ├── config.json                       # [必須] モデル設定
 ├── tokenizer.json                    # [必須] トークナイザー定義
 ├── tokenizer_config.json             # [必須] トークナイザー設定
+├── sentencepiece.bpe.model           # [必須] SentencePiece辞書
 ├── sentence_bert_config.json         # [必須] SentenceTransformers設定
 ├── config_sentence_transformers.json # [必須] ST詳細設定
 ├── modules.json                      # [必須] パイプライン構成定義
 ├── special_tokens_map.json           # [必須] 特殊トークンマップ
-├── 1_Pooling/
-│   └── config.json                   # [必須] プーリング設定
-└── 2_Normalize/
-    └── config.json                   # [必須] 正規化設定
+└── 1_Pooling/
+    └── config.json                   # [必須] プーリング設定
 ```
 
 **📥 各ファイルの個別ダウンロード直リンク**:
 | ファイルパス (配置先) | ダウンロードリンク |
 |---|---|
-| `models/bge-m3/model.safetensors` | [Download](https://huggingface.co/BAAI/bge-m3/resolve/main/model.safetensors) |
+| `models/bge-m3/pytorch_model.bin` | [Download](https://huggingface.co/BAAI/bge-m3/resolve/main/pytorch_model.bin) |
 | `models/bge-m3/config.json` | [Download](https://huggingface.co/BAAI/bge-m3/resolve/main/config.json) |
 | `models/bge-m3/tokenizer.json` | [Download](https://huggingface.co/BAAI/bge-m3/resolve/main/tokenizer.json) |
 | `models/bge-m3/tokenizer_config.json` | [Download](https://huggingface.co/BAAI/bge-m3/resolve/main/tokenizer_config.json) |
+| `models/bge-m3/sentencepiece.bpe.model` | [Download](https://huggingface.co/BAAI/bge-m3/resolve/main/sentencepiece.bpe.model) |
 | `models/bge-m3/sentence_bert_config.json` | [Download](https://huggingface.co/BAAI/bge-m3/resolve/main/sentence_bert_config.json) |
 | `models/bge-m3/config_sentence_transformers.json` | [Download](https://huggingface.co/BAAI/bge-m3/resolve/main/config_sentence_transformers.json) |
 | `models/bge-m3/modules.json` | [Download](https://huggingface.co/BAAI/bge-m3/resolve/main/modules.json) |
 | `models/bge-m3/special_tokens_map.json` | [Download](https://huggingface.co/BAAI/bge-m3/resolve/main/special_tokens_map.json) |
 | `models/bge-m3/1_Pooling/config.json` | [Download](https://huggingface.co/BAAI/bge-m3/resolve/main/1_Pooling/config.json) |
-| `models/bge-m3/2_Normalize/config.json` | [Download](https://huggingface.co/BAAI/bge-m3/resolve/main/2_Normalize/config.json) |
 
 ---
 
-#### 3. 【⚡超高速・軽量版】 `intfloat/multilingual-e5-small` (384次元)
+#### 8. 【⚡超高速・軽量版】 `intfloat/multilingual-e5-small` (384次元)
 
 - **Hugging Face ページ**: [https://huggingface.co/intfloat/multilingual-e5-small/tree/main](https://huggingface.co/intfloat/multilingual-e5-small/tree/main)
 - **配置先フォルダ**: `models/multilingual-e5-small/`
@@ -302,14 +327,13 @@ models/multilingual-e5-small/
 ├── config.json                       # [必須] モデル設定
 ├── tokenizer.json                    # [必須] トークナイザー定義
 ├── tokenizer_config.json             # [必須] トークナイザー設定
+├── sentencepiece.bpe.model           # [必須] SentencePiece辞書
 ├── sentence_bert_config.json         # [必須] SentenceTransformers設定
 ├── config_sentence_transformers.json # [必須] ST詳細設定
 ├── modules.json                      # [必須] パイプライン構成定義
 ├── special_tokens_map.json           # [必須] 特殊トークンマップ
-├── 1_Pooling/
-│   └── config.json                   # [必須] プーリング設定
-└── 2_Normalize/
-    └── config.json                   # [必須] 正規化設定
+└── 1_Pooling/
+    └── config.json                   # [必須] プーリング設定
 ```
 
 **📥 各ファイルの個別ダウンロード直リンク**:
@@ -319,12 +343,12 @@ models/multilingual-e5-small/
 | `models/multilingual-e5-small/config.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/config.json) |
 | `models/multilingual-e5-small/tokenizer.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/tokenizer.json) |
 | `models/multilingual-e5-small/tokenizer_config.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/tokenizer_config.json) |
+| `models/multilingual-e5-small/sentencepiece.bpe.model` | [Download](https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/sentencepiece.bpe.model) |
 | `models/multilingual-e5-small/sentence_bert_config.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/sentence_bert_config.json) |
 | `models/multilingual-e5-small/config_sentence_transformers.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/config_sentence_transformers.json) |
 | `models/multilingual-e5-small/modules.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/modules.json) |
 | `models/multilingual-e5-small/special_tokens_map.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/special_tokens_map.json) |
 | `models/multilingual-e5-small/1_Pooling/config.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/1_Pooling/config.json) |
-| `models/multilingual-e5-small/2_Normalize/config.json` | [Download](https://huggingface.co/intfloat/multilingual-e5-small/resolve/main/2_Normalize/config.json) |
 
 ---
 

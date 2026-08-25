@@ -943,4 +943,3 @@ STEP 12
 各STEP終了時点で動作確認できる状態にする。
 
 
-/Users/mine/000_work/obsidian-dagnetz/01_data/2026

@@ -77,6 +77,15 @@ def get_document_by_path(db_path: str, path: str) -> Optional[Dict[str, Any]]:
         return dict(row) if row else None
 
 
+def get_document_by_id(db_path: str, doc_id: int) -> Optional[Dict[str, Any]]:
+    """IDでドキュメントを検索して辞書形式で返す"""
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM documents WHERE id = ?", (doc_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
 def get_all_documents_metadata(db_path: str) -> Dict[str, Dict[str, Any]]:
     """
     差分比較用に全ドキュメントのメタデータ（path, mtime, size, sha256）を辞書で返す

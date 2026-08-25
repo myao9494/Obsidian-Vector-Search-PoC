@@ -148,9 +148,12 @@ class IndexManager:
             else:
                 updated_count += 1
 
-            # チャンク分割
+            # チャンク分割（見出し階層・タグ情報を活用）
             chunks = chunk_markdown(
-                doc.text, chunk_size=chunk_size, overlap=chunk_overlap
+                doc.text,
+                doc_title=doc.title or Path(doc.relative_path).name,
+                chunk_size=chunk_size,
+                overlap=chunk_overlap,
             )
 
             # Embedding生成
