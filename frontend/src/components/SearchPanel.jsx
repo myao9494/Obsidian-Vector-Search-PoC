@@ -17,6 +17,7 @@ export function SearchPanel({
   setSearchMode,
   setSearchResults,
   setSearchMetrics,
+  setSearchResponseData,
   searchMetrics,
   searchQuery,
   setSearchQuery,
@@ -41,6 +42,9 @@ export function SearchPanel({
       setSearching(true);
       const res = await searchVector(vaultPath, searchQuery.trim(), searchMode, 20, minScore, keywordBoost, 0.08);
       setSearchResults(res.results || []);
+      if (setSearchResponseData) {
+        setSearchResponseData(res);
+      }
       setSearchMetrics({
         query_embedding_time_ms: res.query_embedding_time_ms,
         search_time_ms: res.search_time_ms,

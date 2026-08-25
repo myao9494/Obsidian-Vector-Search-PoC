@@ -37,7 +37,13 @@ export async function getModelStatus() {
   return await res.json();
 }
 
-export async function startIndex(vaultPath, chunkSize = 600, chunkOverlap = 80, forceReindex = false) {
+export async function startIndex(
+  vaultPath,
+  chunkSize = 600,
+  chunkOverlap = 80,
+  forceReindex = false,
+  targetExtensions = ['.md', '.markdown', '.txt']
+) {
   const res = await fetch(`${API_BASE}/index/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -46,6 +52,7 @@ export async function startIndex(vaultPath, chunkSize = 600, chunkOverlap = 80, 
       chunk_size: chunkSize,
       chunk_overlap: chunkOverlap,
       force_reindex: forceReindex,
+      target_extensions: targetExtensions,
     }),
   });
   if (!res.ok) {

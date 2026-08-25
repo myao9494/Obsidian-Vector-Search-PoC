@@ -75,6 +75,7 @@ class IndexStartRequest(BaseModel):
     chunk_size: int = 600
     chunk_overlap: int = 80
     force_reindex: bool = False
+    target_extensions: Optional[List[str]] = None
 
 
 class SearchRequest(BaseModel):
@@ -163,6 +164,7 @@ def start_index(req: IndexStartRequest, background_tasks: BackgroundTasks = None
         chunk_size=req.chunk_size,
         chunk_overlap=req.chunk_overlap,
         force_reindex=req.force_reindex,
+        target_extensions=req.target_extensions,
     )
     state.last_index_result = res
     return asdict(res)

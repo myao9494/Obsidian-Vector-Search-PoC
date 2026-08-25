@@ -2,20 +2,19 @@
 FAISS 高速ベクトル検索モジュール
 仕様:
 - FAISS (faiss.IndexFlatIP) を用いた高速・高精度コサイン類似度検索。
-- Document検索モード: 1 Markdown = 1 Embedding による文書単位の類似度検索と上位Top Kの返却。本文プレビューを付与。
-- Chunk検索モード: チャンク単位の類似度検索と上位Top Kの返却。ヒット文章および前後文脈（前/ヒット/後）を取得して付与。
-- 日本語形態素キーワードブースト (Lexical/Hybrid Boost) による表記揺れ・固有名詞スコア加算。
+- スコアキャリブレーション (Dense + Lexical Hybrid) による 0.0〜0.98 の滑らかなグラデーション生成（1.0000飽和の解消と明瞭な閾値分離）。
+- Document検索モード: 1 Markdown = 1 Embedding による文書単位の類似度検索。
+- Chunk検索モード: チャンク単位の類似度検索と前後文脈（前/ヒット/後）の取得。
 - 反応文特定 (Salient Sentence Extraction) による最もクエリに合致した根拠文の抽出。
-- 検索処理性能の分離計測（Query Embedding生成時間、FAISS類似度計算時間、合計時間）。
 """
 
 import enum
 import os
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from app.db import (
@@ -58,6 +57,43 @@ class SearchResponse:
     query_embedding_time_ms: float
     search_time_ms: float
     total_time_ms: float
+    extracted_keywords: List[str] = field(default_factory=list)
+    keyword_query: str = ""
+    rag_context_xml: str = ""
+    rag_context_markdown: str = ""
+
+
+def generate_rag_contexts(results: List[SearchResultItem], query: str) -> Tuple[str, str]:
+    """
+    検索結果の上位ドキュメント/チャンクから、LLMに投入可能な標準RAGコンテキスト（XML形式およびMarkdown形式）を生成する。
+    """
+    if not results:
+        xml_empty = f"<context query=\"{query}\">\n  <!-- 関連コンテキストは見つかりませんでした -->\n</context>"
+        md_empty = f"## 参考コンテキスト (クエリ: {query})\n*関連するコンテキストは見つかりませんでした。*"
+        return xml_empty, md_empty
+
+    # 1. XML形式（Claude / ChatGPT / 一般的なRAGエージェント向け）
+    xml_lines = [f'<context query="{query}">']
+    for idx, item in enumerate(results[:5], start=1):
+        content = (item.hit_text or item.preview or "").strip()
+        xml_lines.append(f'  <document index="{idx}" title="{item.title}" path="{item.path}" score="{item.score:.4f}">')
+        for line in content.splitlines():
+            xml_lines.append(f"    {line}")
+        xml_lines.append('  </document>')
+    xml_lines.append('</context>')
+    rag_xml = "\n".join(xml_lines)
+
+    # 2. Markdown引用形式（ChatGPT / 一般ドキュメント向け）
+    md_lines = [f"## 参考コンテキスト\nユーザーの質問: `{query}`\n"]
+    for idx, item in enumerate(results[:5], start=1):
+        content = (item.hit_text or item.preview or "").strip()
+        md_lines.append(f"### [{idx}] {item.title} (Score: {item.score:.4f}, Path: `{item.path}`)")
+        for line in content.splitlines():
+            md_lines.append(f"> {line}" if line else ">")
+        md_lines.append("")
+    rag_md = "\n".join(md_lines).strip()
+
+    return rag_xml, rag_md
 
 
 def extract_query_keywords(query: str) -> List[str]:
@@ -72,7 +108,7 @@ def extract_query_keywords(query: str) -> List[str]:
     }
 
     # 1. 記号や空白で大まかに分割
-    coarse_tokens = re.split(r"[\s\.,、。!?！？\-_/()（）「」『』【】]+", query)
+    coarse_tokens = re.split(r"[\s\.,、。!?！？_/()（）「」『』【】]+", query)
     
     keywords_set = set()
     for token in coarse_tokens:
@@ -80,38 +116,108 @@ def extract_query_keywords(query: str) -> List[str]:
         if not t:
             continue
         
-        # 2. 漢字の連続、カタカナの連続、英単語の連続を抽出
-        chunks = re.findall(r"[\u4e00-\u9fff]+|[\u30a0-\u30ff]{2,}|[a-zA-Z0-9]{2,}|[\u3040-\u309f]{2,}", t)
+        # ハイフン付き英単語（例: mlx-whisper）をまず保護
+        hyphen_words = re.findall(r"[a-zA-Z0-9]+-[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*", t)
+        for hw in hyphen_words:
+            if len(hw) >= 3:
+                keywords_set.add(hw)
+
+        # 漢字の連続、カタカナの連続、英単語の連続を抽出
+        chunks = re.findall(r"[\u4e00-\u9fff]+|[\u30a0-\u30ff]{2,}|[a-zA-Z0-9]{2,}", t)
         for chunk in chunks:
             c = chunk.strip()
             # 助詞・活用語尾の簡易トリミング
             c = re.sub(r"^(?:ので|から|より|など|へと|には|では|への|での)", "", c)
-            c = re.sub(r"(?:について|に関する|なので|でした|ました|したい|たい|です|ます|ので|から|ない|れた|った|いた)$", "", c)
+            c = re.sub(r"(?:について|に関する|なので|でした|ました|したい|たい|です|ます|ので|から|ない|れた|った|いた|して|する|って)$", "", c)
             if len(c) >= 2 and c not in stop_words:
                 keywords_set.add(c)
 
     return sorted(list(keywords_set), key=lambda x: -len(x))
 
 
+def compute_calibrated_score(
+    dense_sim: float,
+    keywords: List[str],
+    title: str,
+    text: str,
+    path: str = "",
+    keyword_boost: bool = True,
+    boost_weight: float = 0.08,
+) -> float:
+    """
+    ruri-v3 の異方性ベースラインノイズ（無関係テキストの生内積 0.65〜0.76）を除去し、
+    真に関連する文書のみが 0.70〜0.98 の高スコアとなり、合っていない無関係な文書は 0.0〜0.25 に沈む
+    メリハリのあるキャリブレーションスコアを算出する。
+    """
+    raw_sim = float(dense_sim)
+
+    # 1. ruri-v3 の生コサイン類似度のノイズフロア除去 & 急峻な正規化
+    # raw_sim < 0.70: 無関係ノイズ (0.00 〜 0.15)
+    # raw_sim 0.70 〜 0.93: 実質的な意味類似度区間 (0.15 〜 0.82)
+    if raw_sim < 0.70:
+        base_dense = max(0.0, (raw_sim - 0.45) / 1.8)
+    else:
+        norm = min(max((raw_sim - 0.70) / 0.23, 0.0), 1.0)
+        base_dense = 0.15 + 0.67 * (norm ** 1.6)
+
+    if not keyword_boost or not keywords:
+        return round(float(min(base_dense, 0.98)), 4)
+
+    # 2. キーワードマッチ率およびメタデータ（Tags / Aliases / Title）一致度の計算
+    title_lower = (title or "").lower()
+    text_lower = (text or "").lower()
+    path_lower = (path or "").lower()
+    stem_lower = Path(path).stem.lower() if path else ""
+
+    matched_kw_count = 0
+    title_matched_count = 0
+    meta_matched_count = 0
+    exact_stem_matched = False
+
+    # テキスト内のメタデータヘッダー部分（[Tags: ...], [Aliases: ...], [Keywords: ...]）を抽出
+    meta_header_match = re.search(r"^\[.*?\](?:\s*\[Tags:.*?\])?(?:\s*\[Aliases:.*?\])?(?:\s*\[Keywords:.*?\])?", text, re.IGNORECASE)
+    meta_header_text = meta_header_match.group(0).lower() if meta_header_match else ""
+
+    for kw in keywords:
+        kw_l = kw.lower()
+        matched = False
+        if kw_l == stem_lower:
+            exact_stem_matched = True
+            matched = True
+        if kw_l in title_lower or kw_l in path_lower:
+            title_matched_count += 1
+            matched = True
+        if meta_header_text and kw_l in meta_header_text:
+            meta_matched_count += 1
+            matched = True
+        if kw_l in text_lower:
+            matched = True
+        if matched:
+            matched_kw_count += 1
+
+    total_kw = len(keywords)
+    match_ratio = matched_kw_count / total_kw if total_kw > 0 else 0.0
+    
+    # ボーナス計算
+    title_bonus = 0.08 if exact_stem_matched else min(title_matched_count * 0.03, 0.06)
+    tag_bonus = min(meta_matched_count * 0.04, 0.08)
+    lexical_score = (match_ratio * 0.12) + title_bonus + tag_bonus
+
+    # 3. 合成 (Dense + Lexical + Metadata)
+    final_score = min(max(base_dense + lexical_score, 0.0), 0.98)
+    return round(final_score, 4)
+
+
 def strip_markdown_to_plain(text: str) -> str:
     """Markdown記法（リンク、画像、装飾、テーブル枠）を自然言語プレーンテキストに変換する"""
-    # [テキスト](URL) -> テキスト
     t = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
-    # ![[画像/埋め込み]] -> 空白
     t = re.sub(r"!\[\[[^\]]+\]\]", "", t)
-    # [[ノート名|表示名]] -> 表示名 / [[ノート名]] -> ノート名
     t = re.sub(r"\[\[(?:[^\]\|]+\|)?([^\]]+)\]\]", r"\1", t)
-    # URLの除去 (http://... や https://...)
     t = re.sub(r"https?://[^\s\)\>]+", "", t)
-    # テーブル枠線やセル区切り |
     t = re.sub(r"\|", " ", t)
-    # 見出し記号 #
     t = re.sub(r"^#+\s*", "", t, flags=re.MULTILINE)
-    # リスト記号 -, *, 1.
     t = re.sub(r"^[\s\t]*[-\*\+]\s+|^[\s\t]*\d+\.\s+", "", t, flags=re.MULTILINE)
-    # 太字、斜体、インラインコード
     t = re.sub(r"[\*_`~]", "", t)
-    # 連続する空白を1つにまとめる
     t = re.sub(r"[ \t]+", " ", t)
     return t.strip()
 
@@ -138,7 +244,7 @@ def find_salient_sentence(
     text: str,
     query_vec: np.ndarray,
     embedder: BaseEmbedder,
-    min_sentence_score: float = 0.65,
+    min_sentence_score: float = 0.55,
 ) -> Optional[str]:
     """
     チャンクテキストの中から、クエリベクトルと最も類似度の高い「反応文（核となる一文）」を特定する。
@@ -175,21 +281,23 @@ def find_salient_sentence(
     if not valid_sentences:
         return None
 
+    # 高速化のため最大8文に制限
+    candidates = valid_sentences[:8]
     try:
-        s_vecs = embedder.encode_batch(valid_sentences, is_query=False)
+        s_vecs = embedder.encode_batch(candidates, is_query=False)
         scores = s_vecs @ query_vec
         best_idx = int(np.argmax(scores))
         best_score = float(scores[best_idx])
         
         if best_score < min_sentence_score:
             return None
-        return valid_sentences[best_idx]
+        return candidates[best_idx]
     except Exception:
         return None
 
 
 class VectorSearcher:
-    """FAISSによる高速オフラインベクトル検索エンジン（キーワードブースト & スコア調整 & 反応文特定機能付き）"""
+    """FAISSによる高速オフラインベクトル検索エンジン（キャリブレーションスコア & 反応文特定機能付き）"""
 
     def __init__(self, db_path: str, embedder: BaseEmbedder):
         self.db_path = db_path
@@ -270,8 +378,8 @@ class VectorSearcher:
         keywords = extract_query_keywords(query) if keyword_boost else []
 
         if faiss_idx and total_candidates > 0:
-            # 余裕を持ったTop-K件を取得し、キーワードブースト等を適用
-            fetch_k = min(top_k * 3, total_candidates)
+            # 余裕を持ったTop-K件を取得し、キャリブレーションスコアリングを適用
+            fetch_k = min(top_k * 4, total_candidates)
             raw_hits = faiss_idx.search(query_vec, top_k=fetch_k)
 
             if mode == SearchMode.DOCUMENT:
@@ -282,21 +390,18 @@ class VectorSearcher:
                     if not row:
                         continue
 
-                    # キーワードブースト
-                    boosted_score = float(sim)
-                    if keyword_boost and keywords:
-                        title_lower = (row["title"] or "").lower()
-                        text_lower = (row["text"] or "").lower()
-                        match_count = 0
-                        for kw in keywords:
-                            kw_l = kw.lower()
-                            if kw_l in title_lower or kw_l in text_lower:
-                                match_count += 1
-                        if match_count > 0:
-                            boost_factor = 1.0 + (boost_weight * min(match_count, 3))
-                            boosted_score = min(float(sim) * boost_factor, 1.0)
+                    # キャリブレーションスコア算出
+                    calibrated_score = compute_calibrated_score(
+                        dense_sim=sim,
+                        keywords=keywords,
+                        title=row.get("title") or "",
+                        text=row.get("text") or "",
+                        path=row.get("path") or "",
+                        keyword_boost=keyword_boost,
+                        boost_weight=boost_weight,
+                    )
 
-                    if min_score > 0.0 and boosted_score < min_score:
+                    if min_score > 0.0 and calibrated_score < min_score:
                         continue
 
                     preview_text = (row["text"] or "")[:200]
@@ -308,7 +413,7 @@ class VectorSearcher:
                             document_id=row["id"],
                             path=row["path"],
                             title=row["title"] or Path(row["path"]).name,
-                            score=round(boosted_score, 4),
+                            score=calibrated_score,
                             preview=preview_text,
                         )
                     )
@@ -321,23 +426,20 @@ class VectorSearcher:
                     if not row:
                         continue
 
-                    boosted_score = float(sim)
                     chunk_text = row["text"] or ""
 
-                    # キーワードブースト
-                    if keyword_boost and keywords:
-                        text_lower = chunk_text.lower()
-                        path_lower = (row.get("path") or "").lower()
-                        match_count = 0
-                        for kw in keywords:
-                            kw_l = kw.lower()
-                            if kw_l in text_lower or kw_l in path_lower:
-                                match_count += 1
-                        if match_count > 0:
-                            boost_factor = 1.0 + (boost_weight * min(match_count, 3))
-                            boosted_score = min(float(sim) * boost_factor, 1.0)
+                    # キャリブレーションスコア算出
+                    calibrated_score = compute_calibrated_score(
+                        dense_sim=sim,
+                        keywords=keywords,
+                        title=row.get("title") or "",
+                        text=chunk_text,
+                        path=row.get("path") or "",
+                        keyword_boost=keyword_boost,
+                        boost_weight=boost_weight,
+                    )
 
-                    if min_score > 0.0 and boosted_score < min_score:
+                    if min_score > 0.0 and calibrated_score < min_score:
                         continue
 
                     # 文脈情報取得
@@ -350,7 +452,7 @@ class VectorSearcher:
                             text=chunk_text,
                             query_vec=query_vec,
                             embedder=self.embedder,
-                            min_sentence_score=0.60,
+                            min_sentence_score=0.55,
                         )
 
                     results.append(
@@ -358,7 +460,7 @@ class VectorSearcher:
                             document_id=row["document_id"],
                             path=row["path"],
                             title=row["title"] or Path(row["path"]).name,
-                            score=round(boosted_score, 4),
+                            score=calibrated_score,
                             chunk_id=chunk_id,
                             chunk_index=row["chunk_index"],
                             hit_text=chunk_text,
@@ -375,6 +477,10 @@ class VectorSearcher:
         search_time_ms = round((t_sim_end - t_sim_start) * 1000, 2)
         total_time_ms = round((t_sim_end - t_total_start) * 1000, 2)
 
+        # ハイブリッド検索用キーワードおよびLLM投入用RAGコンテキストの構築
+        kw_query = " OR ".join(keywords) if keywords else query
+        rag_xml, rag_md = generate_rag_contexts(results, query)
+
         return SearchResponse(
             query=query,
             mode=mode,
@@ -383,4 +489,8 @@ class VectorSearcher:
             query_embedding_time_ms=query_emb_time_ms,
             search_time_ms=search_time_ms,
             total_time_ms=total_time_ms,
+            extracted_keywords=keywords,
+            keyword_query=kw_query,
+            rag_context_xml=rag_xml,
+            rag_context_markdown=rag_md,
         )

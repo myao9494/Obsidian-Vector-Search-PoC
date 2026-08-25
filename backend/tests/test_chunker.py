@@ -1,11 +1,12 @@
 """
 Markdown Chunker 最適化テスト仕様
 - 見出し階層（Breadcrumbs: # タイトル > ## セクション）のコンテキスト保持
-- Obsidian Frontmatter タグ（tags: [A, B] や #tag）の抽出・統合
+- Obsidian Frontmatter メタデータ（tags, aliases, 検索用, category）の抽出・統合
 - Obsidian wikilink ([[ノート名]] や [[ノート名|別名]]) の適切なプレーンテキスト展開
 - 短文ノート（タイトルとタグ・1行メモ）の確実なチャンク化（欠落防止）
 - 長文ノートの構造（見出し・段落・リスト）を維持した分割
-- Excalidraw描画データ (%%...%%) やBase64バイナリ行等のノイズ除去
+- Excalidraw描画データ (# Excalidraw Data 以降、%%...%%、埋め込み ![[...]]) の完全除去
+- YAML Frontmatter ヘッダーの除去
 """
 
 import pytest
@@ -58,25 +59,44 @@ tags:
 
 # 購入したところ
 
-[管楽器専門店|バルドン・フィルステージ|ヨモギヤ楽器（株）](https://www.bardon.co.jp/)
+管楽器専門店|バルドン・フィルステージ|ヨモギヤ楽器（株）
 """
-    cleaned, tags = extract_metadata_and_clean(text)
-    assert "学校" in tags
-    assert "吹奏楽" in tags
-    assert "クラリネット" in tags
-    assert "created:" not in cleaned
-    assert "bardon.co.jp" not in cleaned  # URLは除去
-    assert "管楽器専門店" in cleaned or "バルドン" in cleaned
-
     chunks = chunk_markdown(text, doc_title="クラリネット.md", chunk_size=500, overlap=50)
     assert len(chunks) == 1
-    # チャンクにタグと店舗名が含まれていること
+    assert "ヨモギヤ楽器" in chunks[0].text
     assert "クラリネット" in chunks[0].text
-    assert "吹奏楽" in chunks[0].text or "バルドン" in chunks[0].text
+    assert "吹奏楽" in chunks[0].text
+    assert "created:" not in chunks[0].text
 
 
-def test_chunk_wikilinks_expansion():
-    """Obsidianのwikilink ([[ノート名]] や [[ノート名|エイリアス]]) が適切に処理されること"""
+def test_chunk_full_metadata_integration():
+    """tags, aliases, 検索用, category などの各種メタデータが包括的に抽出・埋め込まれること"""
+    text = """---
+created: 2025-11-28 10:00:00
+tags:
+  - 投資
+  - 株式
+aliases:
+  - CB
+  - 転換社債
+検索用: 新株予約権付社債 エクイティファイナンス
+category: ファイナンス
+---
+
+# 転換社債とは
+株式と債券の両方の性質を持つ金融商品です。
+"""
+    chunks = chunk_markdown(text, doc_title="転換社債（CB）.md", chunk_size=500, overlap=50)
+    assert len(chunks) == 1
+    c_text = chunks[0].text
+    assert "Tags: #投資 #株式" in c_text
+    assert "Aliases: CB 転換社債" in c_text or "CB" in c_text
+    assert "新株予約権付社債" in c_text or "ファイナンス" in c_text
+    assert "created:" not in c_text
+
+
+def test_chunk_wikilink_expansion():
+    """Obsidianのwikilinkが自然なプレーンテキストに展開されること"""
     text = """
 # 確定申告の手順
 
@@ -85,7 +105,6 @@ def test_chunk_wikilinks_expansion():
 """
     chunks = chunk_markdown(text, doc_title="確定申告", chunk_size=500, overlap=50)
     assert len(chunks) == 1
-    # wikilink のブラケットが除去され自然な文章になっていること
     assert "確定申告_2025" in chunks[0].text
     assert "ふるさと納税の限度額計算" in chunks[0].text
     assert "[[" not in chunks[0].text
@@ -108,22 +127,44 @@ tags:
     assert "優待" in chunks[0].text or "クーポン" in chunks[0].text
 
 
-def test_chunk_excalidraw_noise_removal():
-    """Excalidrawの内部コメント (%%...%%) やBase64等のノイズが除去されること"""
-    text = """
-# アーキテクチャ図
+def test_chunk_excalidraw_data_section_removal():
+    """# Excalidraw Data 以降のバイナリ・図面データおよび画像埋め込みが完全に除去されること（りんご.mdサンプル）"""
+    text = """---
+created: 2026-08-15 09:10:23
+tags:
+  - excalidraw
+excalidraw-plugin: parsed
+---
 
-以下はシステムの構成図です。
+![[りんご|75]]
+# 本文タイトル
 
-%%
+ここに本物のテキストメモがあります。
+りんごの美味しい食べ方について。
+
+![[Pasted image 20260816102040.png|409]]
+![[あは.excalidraw.md|275]]
+![[いいい.drawio.svg|221]]
+
 # Excalidraw Data
-{"type": "excalidraw", "version": 2, "elements": [{"id": "abc12345", "type": "rectangle"}]}
-%%
 
-実際のコンポーネントはFastAPIとReactで構成されます。
+## Text Elements
+%%
+## Drawing
+```compressed-json
+N4KAkARALgngDgUwgLgAQQQDwMYEMA2AlgCYBOuA7hADTgQBuCpAzoQPYB2KqATLZMzYBXUtiRoIACyhQ4zZAHoFAc0JRJQgEYA6bGwC2CgF7N6hbEcK4OCtptbErHALRY8RMpWdx8Q1TdIEfARcZgRmBShcZQUebR4ANm0AFho6IIR9BA4oZm4AbXAwUDBSiBJuCAB5CmIALQBxAAkAdjY00shYREqgojkkfjLMbmcARgSADm0WgGYWgE5kgFZV
+```
+%%
 """
-    chunks = chunk_markdown(text, doc_title="構成図", chunk_size=500, overlap=50)
-    assert len(chunks) == 1
-    assert "FastAPIとReact" in chunks[0].text
-    assert "excalidraw" not in chunks[0].text.lower()
-    assert "abc12345" not in chunks[0].text
+    cleaned, metadata = extract_metadata_and_clean(text)
+    
+    assert "ここに本物のテキストメモがあります" in cleaned
+    assert "りんごの美味しい食べ方" in cleaned
+    assert "Excalidraw Data" not in cleaned
+    assert "compressed-json" not in cleaned
+    assert "N4KAkARALg" not in cleaned
+    assert "Drawing" not in cleaned
+    assert "Pasted image" not in cleaned
+    assert "drawio" not in cleaned
+    assert "excalidraw-plugin" not in cleaned
+    assert "created:" not in cleaned

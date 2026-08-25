@@ -7,30 +7,41 @@
 1. **PWA & 単一サーバー配信 (FastAPI Single Server)**:
    - ポート `60000` の FastAPI サーバー単体で REST API と PWA フロントエンドを統合配信。
    - ブラウザから「アプリとしてインストール（PWA Standalone）」可能。
-2. **Vault走査 (Scanner)**: Vault内の `*.md` を再帰的に探索（`.obsidian`, `.git`, `.vector_search`, `*.excalidraw.md` は除外）。
+2. **柔軟なVault走査 & 対象拡張子指定 (Scanner)**:
+   - 対象拡張子（`.md`, `.markdown`, `.txt` 等）を画面およびAPIから動的に指定可能。
+   - `.obsidian`, `.git`, `.vector_search`, `*.excalidraw.md`, `*.canvas` 等の除外ディレクトリ・ファイルを自動スキップ。
 3. **チャンキング最適化 & クレンジング (Chunker)**:
    - **見出し階層コンテキスト (Header Breadcrumbs)**: `# タイトル > ## セクション > ### サブセクション` を各チャンクのヘッダーに自動付与し、セマンティック意味情報を保持。
-   - **タグ統合 (Frontmatter & In-body Tags)**: YAML Frontmatter の `tags:` および本文ハッシュタグ（`#tag`）を抽出してチャンク情報に統合。
+   - **タグ・メタデータ統合 (Tags, Aliases, Keywords, Category)**: 
+     - YAML Frontmatter の `tags:` および本文ハッシュタグ（`#tag`）
+     - ノートの別名（`aliases:`）
+     - 検索用キーワード（`検索用:`, `keywords:`, `category:`）
+     - これらを包括抽出し、各チャンク先頭に `[コンテキスト] [Tags: #A #B] [Aliases: X] [Keywords: Y]` として構造化埋め込み。
+   - **YAML Frontmatter / ヘッダーの完全除去**: `created:`, `updated:`, `excalidraw-plugin:` 等の不要なYAML行を本文から完全に除外。
+   - **Excalidraw 描画データ (# Excalidraw Data 以降) の完全切り捨て**: 図面のバイナリ・JSONデータ（compressed-json等）や画像埋め込み（`![[...]]`）を徹底除去。
    - **リンク・記法展開**: Obsidian wikilink（`[[ノート名|表示名]]`）を展開し、URLを除去して表示名のみを保持。
-   - **ノイズ除去**: Excalidraw描画データ（`%%...%%`）、Base64バイナリ行、長大URLパラメータ、メタデータ行（`created:`, `updated:` 等）を徹底除外。
    - **構造保持分割 & 短文救済**: 見出し・段落・リスト境界を尊重し500文字前後に分割。短文ノートも欠落させずインデックス化。
 4. **SQLite & FAISS 統合永続化 (DB & Vector Index)**:
    - メタデータ・テキスト・Embedding を `<Vault>/.vector_search/index.db` に保存。
-   - **FAISS (faiss.IndexFlatIP)** による C++/SIMD 最適化インメモリ高速内積検索（ミリ秒未満）。
+   - **FAISS (faiss.IndexFlatIP)** による C++/SIMD 最適化インメモリ高速内積検索（0.2ms以下）。
 5. **ローカルEmbedding & 自動デバイス選択 (Embedder)**:
-   - **ruri-v3-310m (768d)** 🌟: 🇯🇵 日本語特化 SOTA ModernBERT-Ja モデル（8192トークン長文対応 / クエリ: `検索クエリ: `、文書: `検索文書: ` 自動付与）。
+   - **ruri-v3-310m (768d)**: 日本語特化 SOTA ModernBERT-Ja モデル（8192トークン長文対応 / クエリ: `検索クエリ: `、文書: `検索文書: ` 自動付与）。
    - **マルチプラットフォーム自動高速化**: Mac環境では **MPS (Metal GPU)**、Windows/CPU環境では **CPU (マルチスレッドSIMD)** を自動判定・選択。
    - ローカルパスからのみロード（完全オフライン・自動通信禁止）。
 6. **差分インデックス & モデル自動マイグレーション (Indexer)**:
-   - `path`, `mtime`, `size`, `sha256` を用いた差分更新。
+   - `path`, `mtime`, `size`, `sha256` を用いた差分更新。対象拡張子の動的受付。
    - モデル次元数変更時の自動クリア・再インデックス検知。
-7. **高精度ハイブリッド検索 & 反応文特定 (Searcher)**:
-   - **Chunk検索**: チャンク単位の類似度検索。ヒット文章および前後文脈（前/ヒット/後）を表示。
-   - **Document検索**: 1ノート = 1 Embeddingによる文書単位検索。
-   - **🎯 日本語形態素キーワードブースト (Lexical/Hybrid Boost)**: 漢字・カタカナ・英数単語の文字種境界分割による加点。
-   - **⚡ 反応文特定 (Salient Sentence Extraction)**: プレーンテキスト化・妥当性チェック・しきい値判定による核心文抽出。
+7. **高精度ハイブリッド検索 & メタデータ・キーワードブースト (Searcher)**:
+   - **スコアキャリブレーション & ノイズフロア除去**: 異方性ノイズ（無関係テキストの生内積 0.70 未満）を急峻にカットし、真の合致文書（0.70〜0.98）と無関係なゴミ（0.00〜0.25）の間に明確なスコア差（マージン）を創出。
+   - **タグ・別名・タイトル一致ボーナス (Tag / Meta / Exact Title Bonus)**: クエリ単語がタグや別名、ファイル名と合致した場合に優先順位を押し上げるメタデータブースト。
+   - **🏷️ ハイブリッド検索用 抽出キーワード (Extracted Keywords & OR Query)**: クエリから重要単語を抽出（`extracted_keywords`）し、既存検索エンジンに渡せる `keyword_query`（例: `A OR B OR C`）を生成。
+   - **🤖 AI（LLM）投入用 RAG コンテキスト生成 (XML / Markdown)**: 上位ヒット結果を LLM（ChatGPT / Claude / Gemini / ローカルLLM）にそのまま食べさせられる標準RAGフォーマット（`<context><document>...</document></context>` および Markdown引用形式）で生成。
+   - **⚡ 高速反応文特定 (Salient Sentence Extraction)**: 上位3件の核心文を高速抽出してハイライト。
 8. **ネイティブGUIダイアログ (Dialog)**: OSのネイティブフォルダ選択ダイアログを呼び出し絶対パスを取得。
 9. **UI (React + Vite + PWA)**: 
+   - 抽出キーワードバッジ表示 & ORクエリコピー。
+   - 🤖 AI投入用コンテキストビューア（XML/Markdown切り替え ＆ プロンプト用コピー）。
+   - 対象拡張子入力フィールドの搭載。
    - 関連度レベル別のカラーコーディング（極めて高い: 🟢, 高い: 🔵, 中程度: 🟡, 低: ⚪）。
    - キーワードハイライト（`<mark>` 表示）。
 10. **クロスプラットフォーム起動スクリプト**:

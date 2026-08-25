@@ -1,8 +1,10 @@
 """
 Vault Scanner のテスト仕様
-- 指定されたVaultディレクトリ内のMarkdownファイル（*.md）を再帰的に走査すること
+- 指定されたVaultディレクトリ内の対象ファイル（デフォルト: *.md, *.markdown, *.txt など指定拡張子）を再帰的に走査すること
 - .obsidian, .git, .vector_search などの指定された除外ディレクトリを無視すること
-- 各ファイルについて相対パス、絶対パス、タイトル（先頭見出しまたはファイル名）、mtime、size、sha256、テキスト内容を抽出できること
+- *.excalidraw.md などの図面ファイルを無視すること
+- target_extensions 引数で対象拡張子を動的に指定・拡張できること
+- 各ファイルについて相対パス、絶対パス、タイトル、mtime、size、sha256、テキスト内容を抽出できること
 """
 
 import os
@@ -18,7 +20,6 @@ def test_scan_vault_basic(tmp_path):
     - タイトルが抽出できること (H1見出しまたはファイル名)
     - sha256, mtime, size, text が正しく計算されること
     """
-    # テスト用ファイル作成
     note1 = tmp_path / "Note1.md"
     note1.write_text("# Note One Title\n\nThis is note 1 body text.", encoding="utf-8")
 
@@ -38,37 +39,29 @@ def test_scan_vault_basic(tmp_path):
     assert paths["Note1.md"].size > 0
     assert len(paths["Note1.md"].sha256) == 64
 
-    assert "SubFolder/Note2.md" in paths or "SubFolder\\Note2.md" in paths
     doc2_key = "SubFolder/Note2.md" if "SubFolder/Note2.md" in paths else "SubFolder\\Note2.md"
     assert paths[doc2_key].title == "Note2"
     assert "No heading here" in paths[doc2_key].text
 
 
-def test_scan_vault_exclusions(tmp_path):
+def test_scan_vault_exclusions_and_excalidraw(tmp_path):
     """
-    除外ディレクトリ (.obsidian, .git, .vector_search) が正しく無視されることのテスト
+    除外ディレクトリ (.obsidian, .git, .vector_search) および *.excalidraw.md が無視されること
     """
-    # 正常なファイル
     (tmp_path / "Valid.md").write_text("# Valid\nContent", encoding="utf-8")
+    (tmp_path / "Drawing.excalidraw.md").write_text("# Excalidraw Data\nBinary", encoding="utf-8")
 
-    # .obsidian 配下のファイル
     obsidian_dir = tmp_path / ".obsidian"
     obsidian_dir.mkdir()
-    (obsidian_dir / "workspace.json").write_text("{}", encoding="utf-8")
     (obsidian_dir / "ignore.md").write_text("# Ignore", encoding="utf-8")
 
-    # .git 配下のファイル
     git_dir = tmp_path / ".git"
     git_dir.mkdir()
     (git_dir / "git_ignore.md").write_text("# Git Ignore", encoding="utf-8")
 
-    # .vector_search 配下のファイル
     vs_dir = tmp_path / ".vector_search"
     vs_dir.mkdir()
     (vs_dir / "vs_ignore.md").write_text("# VS Ignore", encoding="utf-8")
-
-    # 非mdファイル
-    (tmp_path / "image.png").write_bytes(b"PNG fake data")
 
     results = scan_vault(str(tmp_path))
 
@@ -76,9 +69,28 @@ def test_scan_vault_exclusions(tmp_path):
     assert results[0].relative_path == "Valid.md"
 
 
+def test_scan_vault_custom_extensions(tmp_path):
+    """
+    target_extensions で指定した拡張子のファイル（.txt, .markdown など）が走査対象となること
+    """
+    (tmp_path / "Note.md").write_text("# MD Note", encoding="utf-8")
+    (tmp_path / "Memo.txt").write_text("Text Memo content", encoding="utf-8")
+    (tmp_path / "Doc.markdown").write_text("# Markdown Doc", encoding="utf-8")
+    (tmp_path / "Data.csv").write_text("a,b,c", encoding="utf-8")
+    (tmp_path / "Ignored.pdf").write_bytes(b"PDF fake")
+
+    # .md, .txt, .markdown を対象
+    results = scan_vault(str(tmp_path), target_extensions=[".md", ".txt", ".markdown"])
+    paths = [d.relative_path for d in results]
+
+    assert "Note.md" in paths
+    assert "Memo.txt" in paths
+    assert "Doc.markdown" in paths
+    assert "Data.csv" not in paths
+    assert "Ignored.pdf" not in paths
+
+
 def test_scan_vault_invalid_path():
-    """
-    存在しないパスやファイルパスを指定した場合のエラーハンドリングテスト
-    """
+    """存在しないパスやファイルパスを指定した場合のエラーハンドリングテスト"""
     with pytest.raises(ValueError):
         scan_vault("/non/existent/path/for/sure/12345")

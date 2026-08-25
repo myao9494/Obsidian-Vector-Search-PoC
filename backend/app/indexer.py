@@ -70,6 +70,7 @@ class IndexManager:
         chunk_size: int = 600,
         chunk_overlap: int = 80,
         force_reindex: bool = False,
+        target_extensions: Optional[List[str]] = None,
     ) -> IndexResult:
         """
         インデックス処理（初回または差分、強制再構築）を実行する。
@@ -86,7 +87,7 @@ class IndexManager:
             clear_all_data(self.db_path)
 
         # 1. 現在のVault内ファイルをスキャン
-        current_docs = scan_vault(str(self.vault_path))
+        current_docs = scan_vault(str(self.vault_path), target_extensions=target_extensions)
         current_map: Dict[str, DocumentMetadata] = {
             doc.relative_path: doc for doc in current_docs
         }

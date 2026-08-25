@@ -1,24 +1,46 @@
 """
-Obsidian Vault スキャナーモジュール
+Vault Scanner モジュール
 仕様:
-- 指定されたObsidian VaultディレクトリからすべてのMarkdownファイル（*.md）を再帰的に収集する。
-- .obsidian, .git, .vector_search などの隠し/管理ディレクトリは除外する。
-- 各ファイルについて相対パス、絶対パス、タイトル（先頭見出しまたはファイル名）、更新日時（mtime）、ファイルサイズ、SHA-256ハッシュ、本文テキストを取得する。
+- 指定されたVaultディレクトリ内の対象ファイル（デフォルト: *.md, *.markdown, *.txt など指定拡張子）を再帰的に走査。
+- .obsidian, .git, .vector_search, .trash などの除外ディレクトリを無視。
+- *.excalidraw.md などの図面ファイルを無視。
+- target_extensions パラメータによる柔軟な対象拡張子の指定・拡張。
+- 各ファイルについて相対パス、絶対パス、タイトル、mtime、size、sha256、テキスト内容を抽出。
 """
 
 import hashlib
 import os
-import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Set
 
-EXCLUDED_DIRS = {".obsidian", ".git", ".vector_search"}
+# 除外対象ディレクトリ
+EXCLUDED_DIRS = {
+    ".obsidian",
+    ".git",
+    ".vector_search",
+    ".trash",
+    ".agents",
+    "node_modules",
+    ".venv",
+    "__pycache__",
+}
+
+# 除外ファイル接尾辞（小文字）
+EXCLUDED_SUFFIXES = (
+    ".excalidraw.md",
+    ".excalidraw",
+    ".canvas",
+    ".drawio.svg",
+    ".drawio",
+)
+
+DEFAULT_EXTENSIONS = [".md", ".markdown", ".txt"]
 
 
 @dataclass
 class DocumentMetadata:
-    """文書のメタデータおよび本文を保持するデータクラス"""
+    """走査されたMarkdownファイルのメタデータ"""
     path: str
     relative_path: str
     title: str
@@ -49,12 +71,16 @@ def calculate_sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-def scan_vault(vault_path: str) -> List[DocumentMetadata]:
+def scan_vault(
+    vault_path: str,
+    target_extensions: Optional[List[str]] = None
+) -> List[DocumentMetadata]:
     """
-    Vaultディレクトリを再帰的に走査し、対象のMarkdownファイル情報を収集する。
+    Vaultディレクトリを再帰的に走査し、対象拡張子のファイル情報を収集する。
     
     Args:
         vault_path: Vaultディレクトリの絶対パスまたは相対パス
+        target_extensions: 対象とする拡張子リスト（例: [".md", ".txt"]）。Noneの場合はデフォルト [".md", ".markdown", ".txt"]
         
     Returns:
         収集されたDocumentMetadataのリスト
@@ -66,6 +92,18 @@ def scan_vault(vault_path: str) -> List[DocumentMetadata]:
     if not vault_p.exists() or not vault_p.is_dir():
         raise ValueError(f"Vaultパスが無効です: {vault_path}")
 
+    # 拡張子の正規化（例: "md" -> ".md", "TXT" -> ".txt"）
+    if target_extensions:
+        valid_exts = set()
+        for ext in target_extensions:
+            clean_ext = ext.strip().lower()
+            if clean_ext:
+                if not clean_ext.startswith("."):
+                    clean_ext = "." + clean_ext
+                valid_exts.add(clean_ext)
+    else:
+        valid_exts = set(DEFAULT_EXTENSIONS)
+
     documents: List[DocumentMetadata] = []
 
     for root, dirs, files in os.walk(vault_p):
@@ -73,9 +111,15 @@ def scan_vault(vault_path: str) -> List[DocumentMetadata]:
         dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS and not d.startswith(".")]
 
         for file in files:
-            if not file.lower().endswith(".md"):
+            file_lower = file.lower()
+
+            # 除外ファイル接尾辞のチェック（*.excalidraw.md 等）
+            if any(file_lower.endswith(suffix) for suffix in EXCLUDED_SUFFIXES):
                 continue
-            if file.lower().endswith(".excalidraw.md"):
+
+            # 対象拡張子のチェック
+            file_ext = Path(file).suffix.lower()
+            if file_ext not in valid_exts:
                 continue
 
             file_path = Path(root) / file
@@ -99,8 +143,8 @@ def scan_vault(vault_path: str) -> List[DocumentMetadata]:
                     text=text,
                 )
                 documents.append(doc)
-            except Exception as e:
-                # 読み込み失敗時はスキップまたはログ記録
+            except Exception:
+                # 読み込み失敗時はスキップ
                 continue
 
     return documents

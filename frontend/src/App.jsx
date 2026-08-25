@@ -27,6 +27,7 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searchMetrics, setSearchMetrics] = useState(null);
+  const [searchResponseData, setSearchResponseData] = useState(null);
 
   // 初期ステータス取得
   useEffect(() => {
@@ -54,7 +55,7 @@ export function App() {
           <div>
             <h1 className="brand-title">Obsidian Vector Search PoC</h1>
             <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
-              Local Offline Vector Search Engine (NumPy Cosine Similarity)
+              Local Offline Vector Search Engine (ruri-v3-310m + FAISS)
             </div>
           </div>
         </div>
@@ -98,6 +99,7 @@ export function App() {
         setSearchMode={setSearchMode}
         setSearchResults={setSearchResults}
         setSearchMetrics={setSearchMetrics}
+        setSearchResponseData={setSearchResponseData}
         searchMetrics={searchMetrics}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
@@ -108,6 +110,7 @@ export function App() {
         results={searchResults}
         searchMode={searchMode}
         query={searchQuery}
+        responseData={searchResponseData}
       />
     </div>
   );
