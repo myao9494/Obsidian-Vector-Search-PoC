@@ -19,7 +19,7 @@ import { getModelStatus, getVaultStats } from './api/client';
 
 export function App() {
   const [vaultPath, setVaultPath] = useState('');
-  const [modelPath, setModelPath] = useState('/Users/mine/000_work/test/PoC_lag/models/multilingual-e5-base');
+  const [modelPath, setModelPath] = useState('/Users/mine/000_work/test/PoC_lag/models/ruri-v3-310m');
   const [modelStatus, setModelStatus] = useState(null);
   const [vaultStats, setVaultStats] = useState(null);
 

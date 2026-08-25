@@ -163,12 +163,12 @@ export function IndexPanel({ vaultPath, modelStatus, vaultStats, setVaultStats }
             <span>インデックス完了</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', color: 'var(--text-muted)' }}>
-            <div>新規追加: <strong style={{ color: 'var(--text-color)' }}>{lastResult.new_count}</strong></div>
-            <div>更新: <strong style={{ color: 'var(--text-color)' }}>{lastResult.updated_count}</strong></div>
-            <div>スキップ: <strong style={{ color: 'var(--text-color)' }}>{lastResult.skipped_count}</strong></div>
-            <div>削除: <strong style={{ color: 'var(--text-color)' }}>{lastResult.deleted_count}</strong></div>
-            <div>総チャンク数: <strong style={{ color: 'var(--text-color)' }}>{lastResult.total_chunks}</strong></div>
-            <div>所要時間: <strong style={{ color: 'var(--text-color)' }}>{lastResult.total_time_sec.toFixed(2)}s</strong></div>
+            <div>新規追加: <strong style={{ color: 'var(--text-color)' }}>{lastResult.new_count ?? 0}</strong></div>
+            <div>更新: <strong style={{ color: 'var(--text-color)' }}>{lastResult.updated_count ?? 0}</strong></div>
+            <div>スキップ: <strong style={{ color: 'var(--text-color)' }}>{lastResult.skipped_count ?? 0}</strong></div>
+            <div>削除: <strong style={{ color: 'var(--text-color)' }}>{lastResult.deleted_count ?? 0}</strong></div>
+            <div>総チャンク数: <strong style={{ color: 'var(--text-color)' }}>{lastResult.total_chunks ?? lastResult.new_chunks ?? 0}</strong></div>
+            <div>所要時間: <strong style={{ color: 'var(--text-color)' }}>{lastResult.total_time_sec != null ? Number(lastResult.total_time_sec).toFixed(2) : '0.00'}s</strong></div>
           </div>
         </div>
       )}

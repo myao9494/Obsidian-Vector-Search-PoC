@@ -71,7 +71,8 @@ function HighlightedText({ text, query, keywords = [] }) {
 /**
  * スコアに応じた関連度情報（クラス名、ラベル、カラー）を判定する
  */
-function getRelevanceInfo(score) {
+function getRelevanceInfo(rawScore) {
+  const score = typeof rawScore === 'number' && !isNaN(rawScore) ? rawScore : 0.0;
   if (score >= 0.85) {
     return {
       cardClass: 'rel-very-high',
@@ -312,10 +313,10 @@ export function ResultList({ results, searchMode, query, responseData }) {
                 <div className="score-container">
                   <div className="score-label">関連度</div>
                   <div className="score-value" style={{ color: rel.color }}>
-                    {(item.score * 100).toFixed(1)}%
+                    {((item.score ?? 0) * 100).toFixed(1)}%
                   </div>
                   <span className={`badge ${rel.badgeClass}`}>
-                    {rel.label} ({item.score.toFixed(4)})
+                    {rel.label} ({Number(item.score ?? 0).toFixed(4)})
                   </span>
                 </div>
               </div>
