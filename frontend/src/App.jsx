@@ -14,6 +14,7 @@ import { Compass } from 'lucide-react';
 import { VaultSelector } from './components/VaultSelector';
 import { ModelSelector } from './components/ModelSelector';
 import { IndexPanel } from './components/IndexPanel';
+import { IncrementalBenchmarkPanel } from './components/IncrementalBenchmarkPanel';
 import { SearchPanel } from './components/SearchPanel';
 import { ResultList } from './components/ResultList';
 import { getModelStatus, getVaultStats, loadModel } from './api/client';
@@ -144,6 +145,19 @@ export function App() {
         modelStatus={modelStatus}
         vaultStats={vaultStats}
         setVaultStats={setVaultStats}
+      />
+
+      {/* 差分更新ライブ検証パネル */}
+      <IncrementalBenchmarkPanel
+        vaultPath={vaultPath}
+        isModelLoaded={modelStatus?.loaded}
+        onUpdateCompleted={() => {
+          if (vaultPath) {
+            getVaultStats(vaultPath)
+              .then((st) => setVaultStats(st))
+              .catch(() => {});
+          }
+        }}
       />
 
       {/* 検索パネル */}

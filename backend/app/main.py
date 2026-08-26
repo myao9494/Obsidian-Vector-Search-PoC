@@ -79,6 +79,14 @@ class IndexStartRequest(BaseModel):
     target_extensions: Optional[List[str]] = None
 
 
+class SingleFileUpdateRequest(BaseModel):
+    vault_path: str
+    relative_path: str
+    content: Optional[str] = None
+    chunk_size: int = 600
+    chunk_overlap: int = 80
+
+
 class SearchRequest(BaseModel):
     vault_path: str
     query: str
@@ -168,6 +176,28 @@ def start_index(req: IndexStartRequest, background_tasks: BackgroundTasks = None
         target_extensions=req.target_extensions,
     )
     state.last_index_result = res
+    return asdict(res)
+
+
+@app.post("/api/index/update-file")
+def update_single_file_endpoint(req: SingleFileUpdateRequest):
+    """
+    単一ファイルの変更を検知・差分更新し、各工程の所要時間（ms）をプロファイリングして返す
+    """
+    if not os.path.exists(req.vault_path):
+        raise HTTPException(status_code=400, detail=f"Vaultパスが存在しません: {req.vault_path}")
+
+    with state.lock:
+        if state.embedder is None:
+            raise HTTPException(status_code=400, detail="モデルがロードされていません。先にモデルをロードしてください。")
+
+    manager = IndexManager(vault_path=req.vault_path, embedder=state.embedder)
+    res = manager.update_single_file(
+        relative_path=req.relative_path,
+        content=req.content,
+        chunk_size=req.chunk_size,
+        chunk_overlap=req.chunk_overlap,
+    )
     return asdict(res)
 
 

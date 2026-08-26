@@ -806,4 +806,383 @@ code, pre {
   border-left: 2px solid #38bdf8;
 }
 
+/* ==========================================================================
+   ⚡ 差分更新・ライブベンチマーク検証パネル スタイル
+   ========================================================================== */
+.incremental-panel {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(24, 24, 37, 0.95));
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  margin-bottom: 20px;
+}
+
+.icon-zap {
+  color: #fbbf24;
+}
+
+.pulse-glow {
+  animation: pulseGlow 2.5s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.4)); }
+  50% { filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.9)); }
+}
+
+.benchmark-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.control-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+/* プリセットバー */
+.preset-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-sm);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  flex-wrap: wrap;
+}
+
+.preset-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fcd34d;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-preset {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #e2e8f0;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-preset:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.btn-preset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-preset-fire {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+.btn-preset-fire:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: #f87171;
+  color: #ffffff;
+}
+
+.btn-preset-bomb {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: rgba(168, 85, 247, 0.4);
+  color: #d8b4fe;
+}
+.btn-preset-bomb:hover:not(:disabled) {
+  background: rgba(168, 85, 247, 0.3);
+  border-color: #c084fc;
+  color: #ffffff;
+}
+
+/* 2カラムグリッド */
+.benchmark-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .benchmark-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* エディタ */
+.editor-container {
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.char-count {
+  font-family: 'JetBrains Mono', monospace;
+  color: #38bdf8;
+  font-size: 11px;
+}
+
+.benchmark-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  color: #f1f5f9;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  min-height: 140px;
+}
+
+/* 測定結果カード */
+.metrics-card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.metrics-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: center;
+  padding: 24px;
+}
+
+.placeholder-icon {
+  color: rgba(245, 158, 11, 0.4);
+}
+
+.metrics-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.metrics-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 10px;
+}
+
+.metrics-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.metrics-path {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.metrics-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.total-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+}
+
+.total-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 26px;
+  font-weight: 800;
+  color: #34d399;
+  text-shadow: 0 0 12px rgba(52, 211, 153, 0.4);
+}
+
+.total-value small {
+  font-size: 14px;
+  font-weight: 600;
+  color: #a7f3d0;
+}
+
+/* 内訳グリッド */
+.breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .breakdown-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.breakdown-item {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.breakdown-item.highlight {
+  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.breakdown-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.breakdown-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.breakdown-item.highlight .breakdown-val {
+  color: #a5b4fc;
+}
+
+.metrics-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  padding-top: 4px;
+}
+
+.chunk-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #cbd5e1;
+}
+
+.chunk-badge strong {
+  color: #38bdf8;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.bottleneck-hint {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(251, 191, 36, 0.25);
+}
+
+/* 履歴セクション */
+.history-section {
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  padding-top: 12px;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.history-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.history-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.history-time {
+  color: var(--text-dim);
+}
+
+.history-file {
+  color: #cbd5e1;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-badge {
+  font-weight: 600;
+  color: #38bdf8;
+}
+
+.history-chunks {
+  color: var(--text-dim);
+}
+
+.history-total strong {
+  color: #34d399;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+
 

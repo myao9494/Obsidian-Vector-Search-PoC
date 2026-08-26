@@ -100,3 +100,25 @@ def test_search_api(client):
     doc_data = search_doc_res.json()
     assert doc_data["mode"] == "document"
     assert len(doc_data["results"]) > 0
+
+
+def test_update_file_api(client):
+    test_client, vault_path = client
+    test_client.post("/api/model/load", json={"model_path": "mock", "use_mock": True})
+    test_client.post("/api/index/start", json={"vault_path": vault_path})
+
+    # ファイル差分更新
+    update_res = test_client.post(
+        "/api/index/update-file",
+        json={
+            "vault_path": vault_path,
+            "relative_path": "Doc1.md",
+            "content": "# API Doc 1 (Updated)\nUpdated content directly via API."
+        }
+    )
+    assert update_res.status_code == 200
+    data = update_res.json()
+    assert data["status"] == "updated"
+    assert data["total_time_ms"] > 0
+    assert data["chunk_count"] >= 1
+

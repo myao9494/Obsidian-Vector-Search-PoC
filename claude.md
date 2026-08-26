@@ -60,3 +60,7 @@
 12. **クロスプラットフォーム起動スクリプト**:
     - `start.bat`: Windowsコマンドプロンプトの文字コード（UTF-8 `chcp 65001` / `PYTHONUTF8=1` / `KMP_DUPLICATE_LIB_OK=TRUE`）、ポート60000自動解放対応。
     - `start.sh`: macOS / Linux 用シェルスクリプト（ポート自動解放、OpenMP多重初期化防止対応）。
+13. **⚡ ファイル差分更新・ライブ検証 (Incremental Updater & Live Benchmark)**:
+    - **単一ファイル高速差分更新 (`POST /api/index/update-file`)**: ファイル変更を検知・即座にEmbedding & DB/FAISS反映。
+    - **工程別ミリ秒プロファイリング**: `I/O・ハッシュ計算`、`Markdown解析・Chunking`、`Embedding推論`、`SQLite/FAISS保存` の内訳を計測。
+    - **GUI リアルタイム時間検証パネル**: ファイルパス入力、直接編集テスト、外部変更検知、意地悪テストプリセット（1万字超長文、記号乱舞、空ファイル等）を即座に実験・視覚化。

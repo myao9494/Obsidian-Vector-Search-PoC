@@ -26,7 +26,21 @@ from app.db import (
 )
 from app.dictionary import GlossaryDictionary
 from app.embedder import BaseEmbedder
-from app.scanner import DocumentMetadata, scan_vault
+from app.scanner import DocumentMetadata, scan_vault, scan_single_file
+
+
+@dataclass
+class SingleFileUpdateResult:
+    """単一ファイル差分更新およびプロファイリング結果"""
+    relative_path: str
+    status: str  # "created", "updated", "skipped", "deleted", "error"
+    chunk_count: int
+    io_hash_time_ms: float
+    chunking_time_ms: float
+    embedding_time_ms: float
+    db_time_ms: float
+    total_time_ms: float
+    error_message: Optional[str] = None
 
 
 @dataclass
@@ -287,3 +301,159 @@ class IndexManager:
             embedding_time_sec=round(embedding_time_accum, 3),
             db_size_mb=stats["db_size_mb"],
         )
+
+    def update_single_file(
+        self,
+        relative_path: str,
+        content: Optional[str] = None,
+        chunk_size: int = 600,
+        chunk_overlap: int = 80,
+    ) -> SingleFileUpdateResult:
+        """
+        単一ファイルの変更を検知・差分更新し、各工程の所要時間（ms）をプロファイリングして返す。
+        content が指定されている場合はファイルに書き込んでから更新を実行する。
+        """
+        start_time = time.perf_counter()
+        io_hash_time_ms = 0.0
+        chunking_time_ms = 0.0
+        embedding_time_ms = 0.0
+        db_time_ms = 0.0
+
+        rel_path = Path(relative_path).as_posix()
+        target_file = (self.vault_path / rel_path).resolve()
+
+        try:
+            # 1. 直接入力コンテンツがある場合はファイル書き込み
+            t_io0 = time.perf_counter()
+            if content is not None:
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+                target_file.write_text(content, encoding="utf-8")
+
+            # 2. ファイルの存在確認とメタデータスキャン
+            doc = scan_single_file(str(self.vault_path), rel_path)
+            io_hash_time_ms = (time.perf_counter() - t_io0) * 1000
+
+            # 3. DB内の既存メタデータを取得
+            existing_meta = get_all_documents_metadata(self.db_path)
+            is_in_db = rel_path in existing_meta
+
+            # ファイルが存在しない場合 -> 削除処理
+            if doc is None:
+                if is_in_db:
+                    t_d0 = time.perf_counter()
+                    delete_document(self.db_path, rel_path)
+                    db_time_ms = (time.perf_counter() - t_d0) * 1000
+                    total_time_ms = (time.perf_counter() - start_time) * 1000
+                    return SingleFileUpdateResult(
+                        relative_path=rel_path,
+                        status="deleted",
+                        chunk_count=0,
+                        io_hash_time_ms=round(io_hash_time_ms, 2),
+                        chunking_time_ms=0.0,
+                        embedding_time_ms=0.0,
+                        db_time_ms=round(db_time_ms, 2),
+                        total_time_ms=round(total_time_ms, 2),
+                    )
+                else:
+                    total_time_ms = (time.perf_counter() - start_time) * 1000
+                    return SingleFileUpdateResult(
+                        relative_path=rel_path,
+                        status="skipped",
+                        chunk_count=0,
+                        io_hash_time_ms=round(io_hash_time_ms, 2),
+                        chunking_time_ms=0.0,
+                        embedding_time_ms=0.0,
+                        db_time_ms=0.0,
+                        total_time_ms=round(total_time_ms, 2),
+                    )
+
+            # 4. 差分判定
+            if is_in_db and existing_meta[rel_path]["sha256"] == doc.sha256:
+                # ハッシュ一致 -> 変更なしスキップ
+                total_time_ms = (time.perf_counter() - start_time) * 1000
+                return SingleFileUpdateResult(
+                    relative_path=rel_path,
+                    status="skipped",
+                    chunk_count=0,
+                    io_hash_time_ms=round(io_hash_time_ms, 2),
+                    chunking_time_ms=0.0,
+                    embedding_time_ms=0.0,
+                    db_time_ms=0.0,
+                    total_time_ms=round(total_time_ms, 2),
+                )
+
+            status = "updated" if is_in_db else "created"
+
+            # 5. チャンキング
+            t_c0 = time.perf_counter()
+            chunks = chunk_markdown(
+                doc.text,
+                doc_title=doc.title or Path(doc.relative_path).name,
+                chunk_size=chunk_size,
+                overlap=chunk_overlap,
+                glossary=self.glossary,
+            )
+            chunking_time_ms = (time.perf_counter() - t_c0) * 1000
+
+            # 6. Embedding生成
+            t_e0 = time.perf_counter()
+            if self.embedder is not None:
+                doc_embedding_vec = self.embedder.encode(doc.text[:2000] if doc.text else "", is_query=False)
+                doc_embedding_blob = doc_embedding_vec.tobytes()
+                dim = self.embedder.embedding_dim
+
+                chunk_records = []
+                if chunks:
+                    chunk_texts = [c.text for c in chunks]
+                    chunk_vecs = self.embedder.encode_batch(chunk_texts, is_query=False)
+                    for c, v in zip(chunks, chunk_vecs):
+                        chunk_records.append(
+                            (c.chunk_index, c.text, v.tobytes(), dim)
+                        )
+            else:
+                doc_embedding_blob = b""
+                chunk_records = []
+                dim = 0
+            embedding_time_ms = (time.perf_counter() - t_e0) * 1000
+
+            # 7. SQLiteへ保存
+            t_d0 = time.perf_counter()
+            doc_id = upsert_document(
+                db_path=self.db_path,
+                path=doc.relative_path,
+                title=doc.title,
+                mtime=doc.mtime,
+                size=doc.size,
+                sha256=doc.sha256,
+                text=doc.text,
+                embedding=doc_embedding_blob,
+            )
+            insert_chunks(self.db_path, doc_id, chunk_records)
+            db_time_ms = (time.perf_counter() - t_d0) * 1000
+
+            total_time_ms = (time.perf_counter() - start_time) * 1000
+
+            return SingleFileUpdateResult(
+                relative_path=rel_path,
+                status=status,
+                chunk_count=len(chunks),
+                io_hash_time_ms=round(io_hash_time_ms, 2),
+                chunking_time_ms=round(chunking_time_ms, 2),
+                embedding_time_ms=round(embedding_time_ms, 2),
+                db_time_ms=round(db_time_ms, 2),
+                total_time_ms=round(total_time_ms, 2),
+            )
+        except Exception as e:
+            total_time_ms = (time.perf_counter() - start_time) * 1000
+            return SingleFileUpdateResult(
+                relative_path=rel_path,
+                status="error",
+                chunk_count=0,
+                io_hash_time_ms=round(io_hash_time_ms, 2),
+                chunking_time_ms=round(chunking_time_ms, 2),
+                embedding_time_ms=round(embedding_time_ms, 2),
+                db_time_ms=round(db_time_ms, 2),
+                total_time_ms=round(total_time_ms, 2),
+                error_message=str(e),
+            )
+

@@ -102,3 +102,23 @@ export async function searchVector(
   }
   return await res.json();
 }
+
+export async function updateSingleFile(vaultPath, relativePath, content = null, chunkSize = 600, chunkOverlap = 80) {
+  const res = await fetch(`${API_BASE}/index/update-file`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      vault_path: vaultPath,
+      relative_path: relativePath,
+      content,
+      chunk_size: chunkSize,
+      chunk_overlap: chunkOverlap,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || 'ファイル差分更新に失敗しました');
+  }
+  return await res.json();
+}
+

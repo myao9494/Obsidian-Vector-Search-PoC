@@ -148,3 +148,39 @@ def scan_vault(
                 continue
 
     return documents
+
+
+def scan_single_file(
+    vault_path: str,
+    relative_path: str
+) -> Optional[DocumentMetadata]:
+    """
+    Vault内の単一ファイルのメタデータを取得する。
+    ファイルが存在しない場合は None を返す。
+    """
+    vault_p = Path(vault_path).resolve()
+    file_path = (vault_p / relative_path).resolve()
+
+    if not file_path.exists() or not file_path.is_file():
+        return None
+
+    try:
+        raw_bytes = file_path.read_bytes()
+        text = raw_bytes.decode("utf-8", errors="replace")
+        stat = file_path.stat()
+
+        sha256 = calculate_sha256(raw_bytes)
+        title = extract_title(text, file_path.stem)
+
+        return DocumentMetadata(
+            path=str(file_path),
+            relative_path=Path(relative_path).as_posix(),
+            title=title,
+            mtime=stat.st_mtime,
+            size=stat.st_size,
+            sha256=sha256,
+            text=text,
+        )
+    except Exception:
+        return None
+
