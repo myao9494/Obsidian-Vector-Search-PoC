@@ -40,6 +40,7 @@ class SearchResultItem:
     path: str
     title: str
     score: float
+    full_path: str = ""
     chunk_id: Optional[int] = None
     chunk_index: Optional[int] = None
     hit_text: Optional[str] = None
@@ -96,6 +97,7 @@ def generate_rag_contexts(results: List[SearchResultItem], query: str) -> Tuple[
     rag_md = "\n".join(md_lines).strip()
 
     return rag_xml, rag_md
+
 
 
 def extract_query_keywords(query: str) -> List[str]:
@@ -432,6 +434,10 @@ class VectorSearcher:
                             keywords.append(dk)
 
         if faiss_idx and total_candidates > 0:
+            # Vaultルートディレクトリの解決
+            db_resolved = Path(self.db_path).resolve()
+            vault_dir = db_resolved.parent.parent if db_resolved.parent.name == ".vector_search" else db_resolved.parent
+
             # 余裕を持ったTop-K件を取得し、キャリブレーションスコアリングを適用
             fetch_k = min(top_k * 4, total_candidates)
             raw_hits = faiss_idx.search(query_vec, top_k=fetch_k)
@@ -462,12 +468,16 @@ class VectorSearcher:
                     if len(row["text"] or "") > 200:
                         preview_text += "..."
 
+                    rel_path = row["path"]
+                    full_p = str((vault_dir / rel_path).resolve())
+
                     results.append(
                         SearchResultItem(
                             document_id=row["id"],
-                            path=row["path"],
-                            title=row["title"] or Path(row["path"]).name,
+                            path=rel_path,
+                            title=row["title"] or Path(rel_path).name,
                             score=calibrated_score,
+                            full_path=full_p,
                             preview=preview_text,
                         )
                     )
@@ -509,12 +519,16 @@ class VectorSearcher:
                             min_sentence_score=0.55,
                         )
 
+                    rel_path = row["path"]
+                    full_p = str((vault_dir / rel_path).resolve())
+
                     results.append(
                         SearchResultItem(
                             document_id=row["document_id"],
-                            path=row["path"],
-                            title=row["title"] or Path(row["path"]).name,
+                            path=rel_path,
+                            title=row["title"] or Path(rel_path).name,
                             score=calibrated_score,
+                            full_path=full_p,
                             chunk_id=chunk_id,
                             chunk_index=row["chunk_index"],
                             hit_text=chunk_text,

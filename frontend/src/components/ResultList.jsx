@@ -1,14 +1,3 @@
-/**
- * 検索結果一覧コンポーネント
- * 仕様:
- * - Top 20 検索結果のカード表示（順位、タイトル、コサイン類似度、ファイルパス）。
- * - 🏷️ 抽出キーワード（Hybrid Query）のバッジ表示とクエリ文字列コピー機能。
- * - 🤖 AI投入用コンテキスト（RAG Context Viewer: XMLタグ形式 / Markdown引用形式）のプレビューとワンクリックコピー機能。
- * - 選択用チェックボックス（人間による選別コピー機能）。
- * - Chunk検索時: ヒット文章および前後文脈（前/ヒット/後）のハイライト表示。
- * - 反応文（Salient Sentence Extraction）の自動ハイライト表示。
- */
-
 import React, { useState } from 'react';
 import {
   ListFilter,
@@ -24,7 +13,34 @@ import {
   ChevronUp,
   Sparkles,
   BookOpen,
+  Folder,
+  ExternalLink,
+  FolderOpen,
+  Compass,
 } from 'lucide-react';
+import { openFileLocation } from '../api/client';
+
+/**
+ * 検索結果クリック時に使う 8001 Open Hub のベース URL を返す
+ * Local-fulltext-search の外部Openハブ契約に準拠
+ */
+function getOpenHubBaseUrl() {
+  return (
+    (typeof window !== 'undefined' && window.__OPEN_HUB_BASE_URL__) ||
+    'http://127.0.0.1:8001'
+  ).replace(/\/+$/, '');
+}
+
+/**
+ * フルパスから親フォルダパスを取り出す
+ */
+function getParentFolderPath(fullPath) {
+  if (!fullPath) return '';
+  const lastSep = Math.max(fullPath.lastIndexOf('/'), fullPath.lastIndexOf('\\'));
+  if (lastSep < 0) return fullPath;
+  if (lastSep === 0) return fullPath.slice(0, 1);
+  return fullPath.slice(0, lastSep);
+}
 
 /**
  * テキスト内の検索クエリキーワードをハイライト表示するヘルパーコンポーネント
@@ -59,69 +75,47 @@ function HighlightedText({ text, query, keywords = [] }) {
   return (
     <span>
       {parts.map((part, i) => {
-        const isMatch = uniqueKw.some((k) => k.toLowerCase() === part.toLowerCase());
-        if (isMatch) {
-          return <mark key={i} className="search-highlight">{part}</mark>;
-        }
-        return <span key={i}>{part}</span>;
+        if (!part) return null;
+        const isMatch = uniqueKw.some(
+          (k) => k.toLowerCase() === part.toLowerCase()
+        );
+        return isMatch ? (
+          <mark key={i} className="highlight-keyword">
+            {part}
+          </mark>
+        ) : (
+          <React.Fragment key={i}>{part}</React.Fragment>
+        );
       })}
     </span>
   );
 }
 
-/**
- * スコアに応じた関連度情報（クラス名、ラベル、カラー）を判定する
- */
-function getRelevanceInfo(rawScore) {
-  const score = typeof rawScore === 'number' && !isNaN(rawScore) ? rawScore : 0.0;
-  if (score >= 0.85) {
-    return {
-      cardClass: 'rel-very-high',
-      badgeClass: 'badge-rel-very-high',
-      label: '極めて高い',
-      color: '#10b981',
-      pct: Math.min(100, Math.round(score * 100)),
-    };
-  } else if (score >= 0.78) {
-    return {
-      cardClass: 'rel-high',
-      badgeClass: 'badge-rel-high',
-      label: '高い関連性',
-      color: '#38bdf8',
-      pct: Math.min(100, Math.round(score * 100)),
-    };
-  } else if (score >= 0.70) {
-    return {
-      cardClass: 'rel-medium',
-      badgeClass: 'badge-rel-medium',
-      label: '中程度',
-      color: '#f59e0b',
-      pct: Math.min(100, Math.round(score * 100)),
-    };
-  } else {
-    return {
-      cardClass: 'rel-low',
-      badgeClass: 'badge-rel-low',
-      label: '低 / 参考',
-      color: '#64748b',
-      pct: Math.min(100, Math.round(score * 100)),
-    };
-  }
-}
-
-export function ResultList({ results, searchMode, query, responseData, onOpenGlossary }) {
+export function ResultList({
+  results: propResults,
+  searchMode = 'chunk',
+  query: propQuery = '',
+  responseData,
+  searchResponse,
+  onOpenGlossary = null,
+}) {
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [copied, setCopied] = useState(false);
-  const [kwCopied, setKwCopied] = useState(false);
+  const [copiedKw, setCopiedKw] = useState(false);
   const [ragCopied, setRagCopied] = useState(false);
-  const [showRagViewer, setShowRagViewer] = useState(false);
   const [ragFormat, setRagFormat] = useState('xml'); // 'xml' or 'markdown'
+  const [showRagViewer, setShowRagViewer] = useState(false);
+  const [copiedPathKey, setCopiedPathKey] = useState(null);
+  const [openingLocationKey, setOpeningLocationKey] = useState(null);
 
-  const extractedKeywords = responseData?.extracted_keywords || [];
-  const keywordQuery = responseData?.keyword_query || '';
-  const ragXml = responseData?.rag_context_xml || '';
-  const ragMd = responseData?.rag_context_markdown || '';
-  const detectedTerms = responseData?.detected_terms || [];
+  const results = propResults || searchResponse?.results || [];
+  const query = propQuery || searchResponse?.query || responseData?.query || '';
+  const extractedKeywords = responseData?.extracted_keywords || searchResponse?.extracted_keywords || [];
+  const keywordQuery = responseData?.keyword_query || searchResponse?.keyword_query || '';
+  const ragXml = responseData?.rag_context_xml || searchResponse?.rag_context_xml || '';
+  const ragMd = responseData?.rag_context_markdown || searchResponse?.rag_context_markdown || '';
+  const detectedTerms = responseData?.detected_terms || searchResponse?.detected_terms || [];
+  const openHubBase = getOpenHubBaseUrl();
+
 
   const toggleSelect = (idKey) => {
     const next = new Set(selectedIds);
@@ -133,88 +127,110 @@ export function ResultList({ results, searchMode, query, responseData, onOpenGlo
     setSelectedIds(next);
   };
 
-  const handleSelectAll = () => {
+  const selectAll = () => {
     if (selectedIds.size === results.length) {
       setSelectedIds(new Set());
     } else {
-      const all = new Set(results.map((r, i) => `${r.document_id}_${r.chunk_id ?? i}`));
+      const all = new Set(
+        results.map((r, i) => `${r.document_id}_${r.chunk_id ?? i}`)
+      );
       setSelectedIds(all);
     }
-  };
-
-  const handleCopySelected = () => {
-    const selectedItems = results.filter((r, i) =>
-      selectedIds.has(`${r.document_id}_${r.chunk_id ?? i}`)
-    );
-    const textToCopy = selectedItems
-      .map((item) => `[${item.title}] (${item.path})\n${item.hit_text || item.preview || ''}\n`)
-      .join('\n---\n\n');
-
-    navigator.clipboard.writeText(textToCopy);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleCopyKwQuery = () => {
     if (!keywordQuery) return;
     navigator.clipboard.writeText(keywordQuery);
-    setKwCopied(true);
-    setTimeout(() => setKwCopied(false), 2000);
+    setCopiedKw(true);
+    setTimeout(() => setCopiedKw(false), 2000);
   };
 
   const handleCopyRagContext = () => {
-    const text = ragFormat === 'xml' ? ragXml : ragMd;
-    if (!text) return;
-    navigator.clipboard.writeText(text);
+    const textToCopy = ragFormat === 'xml' ? ragXml : ragMd;
+    if (!textToCopy) return;
+    navigator.clipboard.writeText(textToCopy);
     setRagCopied(true);
     setTimeout(() => setRagCopied(false), 2000);
   };
 
-  if (!results || results.length === 0) {
+  const handleCopyPath = (e, idKey, fullPath) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(fullPath);
+    setCopiedPathKey(idKey);
+    setTimeout(() => setCopiedPathKey(null), 2000);
+  };
+
+  const handleOpenLocation = async (e, idKey, fullPath) => {
+    e.stopPropagation();
+    try {
+      setOpeningLocationKey(idKey);
+      await openFileLocation(fullPath);
+    } catch (err) {
+      alert(`保存場所を開けませんでした: ${err.message}`);
+    } finally {
+      setOpeningLocationKey(null);
+    }
+  };
+
+  const getRelevanceInfo = (score) => {
+    const s = Number(score ?? 0);
+    if (s >= 0.70) {
+      return { label: 'High', color: '#10b981', badgeClass: 'badge-high', cardClass: 'card-high' };
+    }
+    if (s >= 0.40) {
+      return { label: 'Medium', color: '#f59e0b', badgeClass: 'badge-med', cardClass: 'card-med' };
+    }
+    return { label: 'Low', color: '#94a3b8', badgeClass: 'badge-low', cardClass: 'card-low' };
+  };
+
+  if (results.length === 0) {
     return (
-      <div className="card" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-dim)' }}>
-        <ListFilter size={32} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
-        <p>検索結果はここに表示されます</p>
+      <div className="results-container">
+        <div className="empty-state">
+          <div className="empty-state-icon">🔍</div>
+          <div className="empty-state-title">該当するノートが見つかりませんでした</div>
+          <div className="empty-state-desc">
+            別のキーワードで試すか、インデックスの更新状況を確認してください。
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="card">
-      {/* 💡 検出された専門用語・類似語（Glossary）ボックス */}
+    <div className="results-container">
+      {/* 💡 検出された専門用語・同義語カード */}
       {detectedTerms.length > 0 && (
-        <div className="glossary-detected-box">
-          <div className="glossary-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sparkles size={16} color="#38bdf8" />
-              <span className="glossary-title">💡 検出された専門用語・同義語 (Excel辞書連携):</span>
+        <div className="detected-terms-card">
+          <div className="detected-terms-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <BookOpen size={18} color="#0c8599" />
+              <span className="detected-terms-title">
+                検出された社内用語・同義語 (Query Enrichment 適用中)
+              </span>
             </div>
             {onOpenGlossary && (
               <button
-                className="btn btn-secondary btn-xs"
+                className="btn btn-secondary btn-sm"
                 onClick={onOpenGlossary}
-                style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-                title="辞書エディタを開いて用語を追加・編集"
+                style={{ fontSize: '11px', padding: '4px 8px' }}
+                title="専門用語辞書を開いて編集"
               >
-                <BookOpen size={12} color="#38bdf8" />
-                <span>辞書を編集</span>
+                辞書を編集
               </button>
             )}
           </div>
-          <div className="glossary-cards-grid">
-            {detectedTerms.map((termItem, i) => (
-              <div key={i} className="glossary-term-card">
-                <div className="glossary-term-name">{termItem.term}</div>
-                {termItem.synonyms && termItem.synonyms.length > 0 && (
-                  <div className="glossary-term-synonyms">
-                    <span className="glossary-synonym-label">同義語:</span>
-                    {termItem.synonyms.map((syn, sIdx) => (
-                      <span key={sIdx} className="glossary-synonym-badge">{syn}</span>
-                    ))}
-                  </div>
+          <div className="detected-terms-list">
+            {detectedTerms.map((t, idx) => (
+              <div key={idx} className="detected-term-item">
+                <span className="detected-term-badge">{t.term}</span>
+                {t.synonyms && t.synonyms.length > 0 && (
+                  <span className="detected-term-synonyms">
+                    (同義語: {t.synonyms.join(', ')})
+                  </span>
                 )}
-                {termItem.description && (
-                  <div className="glossary-term-desc">{termItem.description}</div>
+                {t.description && (
+                  <span className="detected-term-desc">: {t.description}</span>
                 )}
               </div>
             ))}
@@ -222,97 +238,96 @@ export function ResultList({ results, searchMode, query, responseData, onOpenGlo
         </div>
       )}
 
-      {/* 🏷️ 抽出キーワード (Hybrid Query) バッジ表示エリア */}
+      {/* 🏷️ 抽出キーワード (Hybrid Query) バナー */}
       {extractedKeywords.length > 0 && (
-        <div className="keyword-extracted-box">
-          <div className="keyword-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Tag size={15} color="#818cf8" />
-              <span className="keyword-title">抽出キーワード (Hybrid Query):</span>
+        <div className="keywords-banner">
+          <div className="keywords-banner-left">
+            <Tag size={16} color="#06b6d4" />
+            <span className="keywords-label">抽出キーワード (OR検索用):</span>
+            <div className="keyword-badges">
+              {extractedKeywords.map((kw, i) => (
+                <span key={i} className="keyword-badge">
+                  {kw}
+                </span>
+              ))}
             </div>
+          </div>
+
+          {keywordQuery && (
             <button
-              className="btn btn-secondary btn-xs"
+              className="btn btn-secondary btn-sm"
               onClick={handleCopyKwQuery}
-              title="キーワード検索エンジン用の OR クエリ文字列をコピー"
+              title={`コピー: ${keywordQuery}`}
             >
-              {kwCopied ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
-              <span>{kwCopied ? 'クエリをコピーしました' : 'OR クエリをコピー'}</span>
-            </button>
-          </div>
-          <div className="keyword-badge-list">
-            {extractedKeywords.map((kw, i) => (
-              <span key={i} className="keyword-badge">
-                #{kw}
-              </span>
-            ))}
-            <span className="keyword-query-preview">
-              (クエリ: <code>{keywordQuery}</code>)
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* 🤖 AI投入用コンテキスト（RAG Context Viewer）トグル & ツールバー */}
-      <div className="rag-action-bar">
-        <button
-          className={`btn ${showRagViewer ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => setShowRagViewer(!showRagViewer)}
-          style={{ padding: '7px 14px', fontSize: '13px' }}
-        >
-          <Bot size={16} />
-          <span>🤖 AI投入用コンテキスト (RAG Output)</span>
-          {showRagViewer ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </button>
-
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn btn-secondary" onClick={handleSelectAll} style={{ padding: '6px 12px', fontSize: '12px' }}>
-            {selectedIds.size === results.length ? <CheckSquare size={14} /> : <Square size={14} />}
-            <span>全選択/解除</span>
-          </button>
-          {selectedIds.size > 0 && (
-            <button className="btn btn-primary" onClick={handleCopySelected} style={{ padding: '6px 12px', fontSize: '12px' }}>
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-              <span>{copied ? 'コピー完了' : '選択をコピー'}</span>
+              {copiedKw ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+              <span>{copiedKw ? 'ORクエリをコピーしました' : 'ORクエリをコピー'}</span>
             </button>
           )}
         </div>
-      </div>
+      )}
 
-      {/* 🤖 AI投入用コンテキスト プレビューパネル（展開時） */}
-      {showRagViewer && (
-        <div className="rag-viewer-panel">
-          <div className="rag-viewer-header">
-            <div className="rag-tabs">
-              <button
-                className={`rag-tab ${ragFormat === 'xml' ? 'active' : ''}`}
-                onClick={() => setRagFormat('xml')}
-              >
-                <Code size={14} />
-                <span>XMLタグ形式 (Claude / OpenAI標準)</span>
-              </button>
-              <button
-                className={`rag-tab ${ragFormat === 'markdown' ? 'active' : ''}`}
-                onClick={() => setRagFormat('markdown')}
-              >
-                <FileCode size={14} />
-                <span>Markdown引用形式</span>
-              </button>
+      {/* 🤖 AI投入用 RAG コンテキストビューア */}
+      {ragXml && (
+        <div className="rag-context-card">
+          <div
+            className="rag-context-header"
+            onClick={() => setShowRagViewer(!showRagViewer)}
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="rag-header-left">
+              <Bot size={18} color="#8b5cf6" />
+              <span className="rag-title">🤖 AI（LLM）投入用 RAG コンテキスト</span>
+              <span className="rag-badge">Top 5 ドキュメント抽出済</span>
             </div>
 
-            <button className="btn btn-primary btn-sm" onClick={handleCopyRagContext}>
-              {ragCopied ? <Check size={14} /> : <Copy size={14} />}
-              <span>{ragCopied ? 'AIプロンプト用にコピー完了！' : '📋 AIプロンプト用にコピー'}</span>
-            </button>
+            <div className="rag-header-actions" onClick={(e) => e.stopPropagation()}>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setShowRagViewer(!showRagViewer)}
+                title={showRagViewer ? '折りたたむ' : '展開する'}
+              >
+                {showRagViewer ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                <span>{showRagViewer ? '閉じる' : 'プレビュー'}</span>
+              </button>
+            </div>
           </div>
 
-          <div className="rag-code-container">
-            <pre className="rag-code-content">
-              {ragFormat === 'xml' ? ragXml : ragMd}
-            </pre>
-          </div>
-          <div className="rag-help-text">
-            💡 <strong>使い方:</strong> 上記の内容を ChatGPT、Claude、Gemini、またはローカルLLMのプロンプト内にそのまま貼り付けることで、Obsidianの検索結果に基づいた高精度な回答（RAG）を生成できます。
-          </div>
+          {showRagViewer && (
+            <div className="rag-viewer-body">
+              <div className="rag-format-tabs">
+                <div className="tab-group">
+                  <button
+                    className={`btn-tab ${ragFormat === 'xml' ? 'active' : ''}`}
+                    onClick={() => setRagFormat('xml')}
+                  >
+                    <Code size={14} />
+                    <span>XML形式 (Claude / ChatGPT)</span>
+                  </button>
+                  <button
+                    className={`btn-tab ${ragFormat === 'markdown' ? 'active' : ''}`}
+                    onClick={() => setRagFormat('markdown')}
+                  >
+                    <FileCode size={14} />
+                    <span>Markdown形式</span>
+                  </button>
+                </div>
+
+                <button className="btn btn-primary btn-sm" onClick={handleCopyRagContext}>
+                  {ragCopied ? <Check size={14} /> : <Copy size={14} />}
+                  <span>{ragCopied ? 'AIプロンプト用にコピー完了！' : '📋 AIプロンプト用にコピー'}</span>
+                </button>
+              </div>
+
+              <div className="rag-code-container">
+                <pre className="rag-code-content">
+                  {ragFormat === 'xml' ? ragXml : ragMd}
+                </pre>
+              </div>
+              <div className="rag-help-text">
+                💡 <strong>使い方:</strong> 上記の内容を ChatGPT、Claude、Gemini、またはローカルLLMのプロンプト内にそのまま貼り付けることで、Obsidianの検索結果に基づいた高精度な回答（RAG）を生成できます。
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -321,18 +336,18 @@ export function ResultList({ results, searchMode, query, responseData, onOpenGlo
         <div className="card-title" style={{ marginBottom: 0 }}>
           <ListFilter size={18} color="#6366f1" />
           <span>検索結果 (Top {results.length})</span>
-          <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontWeight: 'normal', marginLeft: '8px' }}>
-            ({selectedIds.size} 件選択中)
-          </span>
         </div>
       </div>
 
-      {/* 検索結果カード一覧 */}
       <div className="results-list">
         {results.map((item, index) => {
           const idKey = `${item.document_id}_${item.chunk_id ?? index}`;
           const isSelected = selectedIds.has(idKey);
           const rel = getRelevanceInfo(item.score);
+          const fullPath = item.full_path || item.path;
+          const parentFolder = getParentFolderPath(fullPath);
+          const fullPathUrl = `${openHubBase}/api/fullpath?path=${encodeURIComponent(fullPath)}`;
+          const folderUrl = `${openHubBase}/?path=${encodeURIComponent(parentFolder)}`;
 
           return (
             <div
@@ -342,15 +357,26 @@ export function ResultList({ results, searchMode, query, responseData, onOpenGlo
             >
               {/* カード上部 */}
               <div className="result-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                   <input
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => {}}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: 'pointer', flexShrink: 0 }}
                   />
                   <span className="result-rank">#{index + 1}</span>
-                  <span className="result-title">{item.title}</span>
+                  {/* タイトルリンク: クリックで 8001 Open Hub 経由で直接ファイルを開く */}
+                  <a
+                    href={fullPathUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="result-title-link"
+                    onClick={(e) => e.stopPropagation()}
+                    title={`Open Hubでファイルを開く: ${fullPath}`}
+                  >
+                    <span className="result-title">{item.title}</span>
+                    <ExternalLink size={14} className="title-external-icon" />
+                  </a>
                 </div>
 
                 <div className="score-container">
@@ -364,8 +390,60 @@ export function ResultList({ results, searchMode, query, responseData, onOpenGlo
                 </div>
               </div>
 
-              {/* パス */}
-              <div className="result-path">{item.path}</div>
+              {/* パス表示 & アクションバー (Local-fulltext-search 仕様準拠) */}
+              <div className="result-path-container" onClick={(e) => e.stopPropagation()}>
+                <code className="result-path-text" title={fullPath}>
+                  {fullPath}
+                </code>
+
+                <div className="result-path-actions">
+                  {/* パスコピーボタン */}
+                  <button
+                    type="button"
+                    className="btn-path-action"
+                    onClick={(e) => handleCopyPath(e, idKey, fullPath)}
+                    title="フルパスをクリップボードにコピー"
+                  >
+                    {copiedPathKey === idKey ? (
+                      <>
+                        <Check size={13} color="#10b981" />
+                        <span style={{ color: '#10b981' }}>コピー完了</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={13} />
+                        <span>パスをコピー</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* 保存場所を表示 (Finder / Explorer) */}
+                  <button
+                    type="button"
+                    className="btn-path-action"
+                    onClick={(e) => handleOpenLocation(e, idKey, fullPath)}
+                    title="OSのFinder/Explorerでファイルの保存場所を表示"
+                    disabled={openingLocationKey === idKey}
+                  >
+                    <Compass size={13} />
+                    <span>{openingLocationKey === idKey ? '表示中...' : '保存場所を表示'}</span>
+                  </button>
+
+                  {/* フォルダを開く (Open Hub リンク) */}
+                  {parentFolder && (
+                    <a
+                      href={folderUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn-path-action link-path-action"
+                      title="親フォルダをOpen Hubで開く"
+                    >
+                      <FolderOpen size={13} />
+                      <span>フォルダを開く</span>
+                    </a>
+                  )}
+                </div>
+              </div>
 
               {/* 反応文（Salient Sentence）の強調表示 */}
               {item.salient_sentence && (

@@ -97,6 +97,17 @@ class SearchRequest(BaseModel):
     boost_weight: float = 0.08
 
 
+import platform
+import subprocess
+import urllib.parse
+from pathlib import PureWindowsPath
+from fastapi.responses import RedirectResponse
+
+
+class OpenFileLocationRequest(BaseModel):
+    path: str
+
+
 class DictionaryEntryModel(BaseModel):
     terms: Optional[str] = None
     term: Optional[str] = None
@@ -110,11 +121,74 @@ class DictionarySaveRequest(BaseModel):
     entries: List[DictionaryEntryModel]
 
 
+# === ヘルパー関数 (Finder / Explorer) ===
+def _open_folder_macos(path: str) -> None:
+    result = subprocess.run(
+        ["/usr/bin/open", "-R", path],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Finder failed to open the file location: {result.stderr}",
+        )
+
+
+def _open_folder_windows(path: str) -> None:
+    normalized_path = str(PureWindowsPath(path))
+    command = ["explorer.exe", normalized_path] if os.path.isdir(path) else ["explorer.exe", "/select,", normalized_path]
+    result = subprocess.run(
+        command,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Explorer failed to open the file location: {result.stderr}",
+        )
+
+
 # === エンドポイント ===
 @app.get("/api/health")
 def health_check():
     """ヘルスチェック"""
     return {"status": "ok", "app": "Obsidian Vector Search PoC"}
+
+
+@app.get("/api/open/file")
+def open_file_redirect(path: str, open_hub_base: str = "http://127.0.0.1:8001"):
+    """
+    8001番の外部Open Hub (/api/fullpath?path=...) へ307リダイレクトする。
+    Local-fulltext-search の外部Openハブ連携契約に準拠。
+    """
+    base_url = (open_hub_base or "http://127.0.0.1:8001").rstrip("/")
+    encoded_path = urllib.parse.quote(path)
+    target_url = f"{base_url}/api/fullpath?path={encoded_path}"
+    return RedirectResponse(url=target_url, status_code=307)
+
+
+@app.post("/api/files/open-location")
+def open_file_location(req: OpenFileLocationRequest):
+    """
+    指定パスの位置を macOS では Finder、Windows では Explorer で開く。
+    Local-fulltext-search の API 仕様に準拠。
+    """
+    system_name = platform.system()
+    if system_name == "Darwin":
+        _open_folder_macos(req.path)
+        return {"status": "success"}
+    if system_name == "Windows":
+        _open_folder_windows(req.path)
+        return {"status": "success"}
+    raise HTTPException(
+        status_code=501,
+        detail="Open location is supported only on macOS and Windows.",
+    )
+
 
 
 @app.post("/api/dialog/select-folder", response_model=DialogResponse)

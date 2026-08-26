@@ -1453,6 +1453,112 @@ code, pre {
   border-radius: 4px;
 }
 
+/* === 検索結果カードのタイトルリンク & パスアクションバー (Local-fulltext-search 準拠) === */
+.result-title-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: inherit;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+
+.result-title-link:hover {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+  text-decoration: none;
+}
+
+.title-external-icon {
+  color: #64748b;
+  opacity: 0.6;
+  transition: all 0.15s ease;
+}
+
+.result-title-link:hover .title-external-icon {
+  color: #38bdf8;
+  opacity: 1;
+  transform: translate(1px, -1px);
+}
+
+.result-path-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  margin-top: 6px;
+  margin-bottom: 10px;
+}
+
+.result-path-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  color: #94a3b8;
+  word-break: break-all;
+  user-select: text;
+  cursor: text;
+  flex: 1;
+  min-width: 200px;
+}
+
+.result-path-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-path-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-path-action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.btn-path-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.link-path-action {
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.25);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.link-path-action:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+
 
 
 

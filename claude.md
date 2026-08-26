@@ -68,3 +68,10 @@
     - **単一ファイル高速差分更新 (`POST /api/index/update-file`)**: ファイル変更を検知・即座にEmbedding & DB/FAISS反映。
     - **工程別ミリ秒プロファイリング**: `I/O・ハッシュ計算`、`Markdown解析・Chunking`、`Embedding推論`、`SQLite/FAISS保存` の内訳を計測。
     - **GUI リアルタイム時間検証パネル**: ファイルパス入力、直接編集テスト、外部変更検知、意地悪テストプリセット（1万字超長文、記号乱舞、空ファイル等）を即座に実験・視覚化。
+14. **🔗 外部Open Hub (8001) 連携 & ファイルオープン・保存場所表示**:
+    - **Local-fulltext-search 仕様完全準拠**: 将来のリポジトリ統合を見据え、キーワード検索リポジトリと同一のプロトコルを採用。
+    - **Primary Open (タイトルクリック)**: 検索結果タイトルをクリックすると `${OPEN_HUB_BASE}/api/fullpath?path=<URLエンコード済みfull_path>`（既定 `http://127.0.0.1:8001`）へ遷移し、外部Openハブ経由でファイルを開く。
+    - **307リダイレクトAPI (`GET /api/open/file?path=...`)**: バックエンド経由で8001 Open Hubへ転送。
+    - **保存場所表示 (`POST /api/files/open-location`)**: macOSではFinder (`open -R`)、WindowsではExplorer (`explorer.exe /select,`) を起動してファイル位置を表示。
+    - **フォルダを開く & パスコピー**: 親フォルダのOpen Hubリンクおよびフルパスのワンクリックコピー機能。
+

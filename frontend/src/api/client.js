@@ -145,4 +145,19 @@ export async function saveDictionary(vaultPath, entries, fileName = 'glossary.xl
   return await res.json();
 }
 
+export async function openFileLocation(path) {
+  const res = await fetch(`${API_BASE}/files/open-location`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || 'ファイルの保存場所を開くのに失敗しました');
+  }
+  return await res.json();
+}
+
+
+
 

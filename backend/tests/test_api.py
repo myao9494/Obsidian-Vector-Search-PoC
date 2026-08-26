@@ -166,3 +166,41 @@ def test_dictionary_save_and_status_api(client):
     assert "プロジェクトX" in st_data2["entries"][0]["synonyms"]
 
 
+def test_open_file_redirect_api(client):
+    """8001 Open Hub への 307 リダイレクトAPIテスト"""
+    test_client, vault_path = client
+    target_path = f"{vault_path}/Doc1.md"
+
+    response = test_client.get(
+        f"/api/open/file?path={target_path}",
+        follow_redirects=False
+    )
+    assert response.status_code in (307, 302, 303)
+    location = response.headers["location"]
+    assert "http://127.0.0.1:8001/api/fullpath?path=" in location
+    assert "Doc1.md" in location
+
+
+def test_open_file_location_api(client, monkeypatch):
+    """OSネイティブ（Finder/Explorer）での位置表示APIテスト"""
+    test_client, vault_path = client
+    target_path = f"{vault_path}/Doc1.md"
+
+    # サブルーチンの呼び出しをモック化
+    called_cmds = []
+    def mock_run(cmd, *args, **kwargs):
+        called_cmds.append(cmd)
+        class MockResult:
+            returncode = 0
+        return MockResult()
+
+    import subprocess
+    monkeypatch.setattr(subprocess, "run", mock_run)
+
+    response = test_client.post("/api/files/open-location", json={"path": target_path})
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    assert len(called_cmds) == 1
+
+
+

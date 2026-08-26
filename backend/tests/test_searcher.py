@@ -63,6 +63,8 @@ def test_document_search(indexed_vault):
     # 1件目の構造確認
     top_item = res.results[0]
     assert top_item.path in ["PICA-X.md", "TPS.md"]
+    assert top_item.full_path.endswith(top_item.path)
+    assert top_item.full_path.startswith(vault_path)
     assert -1.0 <= top_item.score <= 1.0001
     assert top_item.preview != ""
 
