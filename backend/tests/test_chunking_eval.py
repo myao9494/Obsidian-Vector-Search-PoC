@@ -24,14 +24,25 @@ from tests.evaluate_chunking import (
 )
 
 
+from app.db import get_db_embedding_dim
+
+
 @pytest.fixture(scope="module")
 def real_vault_searcher():
     vault_path = "/Users/mine/000_work/obsidian-dagnetz/01_data"
     db_path = os.path.join(vault_path, ".vector_search", "index.db")
-    model_path = "/Users/mine/000_work/test/PoC_lag/models/ruri-v3-310m"
+    
+    if not os.path.exists(db_path):
+        pytest.skip("実データVaultのDBが存在しません")
 
-    if not os.path.exists(db_path) or not os.path.exists(model_path):
-        pytest.skip("実データVaultのDBまたはruri-v3-310mモデルが存在しません")
+    dim = get_db_embedding_dim(db_path)
+    if dim == 256:
+        model_path = "/Users/mine/000_work/test/PoC_lag/models/ruri-v3-30m"
+    else:
+        model_path = "/Users/mine/000_work/test/PoC_lag/models/ruri-v3-310m"
+
+    if not os.path.exists(model_path):
+        pytest.skip(f"評価用モデルが存在しません: {model_path}")
 
     device = auto_detect_device()
     embedder = Embedder(model_path=model_path, device=device)
@@ -40,6 +51,7 @@ def real_vault_searcher():
 
 
 def test_chunking_evaluation_dataset_a(real_vault_searcher):
+
     """データセットA（基本15問）の精度・スコア分布検証"""
     searcher = real_vault_searcher
 
@@ -105,8 +117,14 @@ def test_chunking_evaluation_all_60_benchmark(real_vault_searcher):
     print(f"スコア標準偏差: {res_all.score_std:.4f}")
     print("=" * 65)
 
-    assert res_all.hit_rate_at_1 >= 0.90  # 90%以上
+    # 310Mモデルは90%以上、30M超軽量モデルは85%以上
+    min_hit_1 = 0.90 if searcher.embedder.embedding_dim == 768 else 0.85
+    min_mrr = 0.93 if searcher.embedder.embedding_dim == 768 else 0.90
+
+    assert res_all.hit_rate_at_1 >= min_hit_1
     assert res_all.hit_rate_at_3 >= 0.98  # 98%以上
-    assert res_all.mrr >= 0.93            # MRR 0.93以上
+    assert res_all.mrr >= min_mrr
     assert res_all.saturation_rate == 0.0 # 飽和ゼロ
     assert res_all.avg_search_time_ms < 300.0 # 300ms未満
+
+

@@ -1,7 +1,8 @@
 # システムアーキテクチャ & 設計ドキュメント
 
 ## 1. システム全体構成
-本システムは FastAPI によるバックエンド、React (Vite) によるフロントエンド、SQLite DB、**FAISS 高速ベクトルインデックス**、および **ruri-v3-310m**（Sentence Transformers）による完全オフライン対応のベクトル検索PWAアプリケーションです。
+本システムは FastAPI によるバックエンド、React (Vite) によるフロントエンド、SQLite DB、**FAISS 高速ベクトルインデックス**、および **ruri-v3 シリーズ（310M / 30M）**（Sentence Transformers）による完全オフライン対応のベクトル検索PWAアプリケーションです。
+将来的なキーワード検索リポジトリ (`Local-fulltext-search`) との統合を見据え、プロトコルやAPIインターフェースの互換性を確保しています。
 
 ### 構成要素
 - **Vault Scanner (`scanner.py`)**:
@@ -18,13 +19,27 @@
 - **SQLite Database (`db.py`)**: `<Vault>/.vector_search/index.db` に `documents` および `chunks` を永続化。
 - **FAISS Vector Index (`faiss_index.py`)**: `faiss.IndexFlatIP` による C++/SIMD 最適化インメモリ高速内積検索（ミリ秒未満）。
 - **Embedder (`embedder.py`)**: 
-  - **ruri-v3-310m (768d)**: ModernBERT-Ja ベースの日本語SOTAモデル。
+  - **ruri-v3-310m (768d)**: ModernBERT-Ja ベースの日本語SOTA標準・高精度モデル。
+  - **ruri-v3-30m (256d)**: Windows 一般CPUでも ~60ms で動作する超軽量・超高速モデル。
   - プレフィックス自動付与: 検索クエリには「`検索クエリ: `」、文書・チャンクには「`検索文書: `」を付与。
   - **ハードウェア自動検出**: Mac（Apple Silicon）では **MPS (Metal GPU)**、Windows/CPU環境では **CPU (SIMD並列)** を自動選択。
-- **Index Manager (`indexer.py`)**: 差分検出（新規・変更・削除・未変更）を行い、進捗・残り時間推定を計算。
+- **Index Manager & Incremental Updater (`indexer.py`)**:
+  - 全体差分インデックス（新規・変更・削除・未変更の検出）。
+  - **単一ファイル高速差分更新 (`SingleFileUpdate`)**: 変更された1ファイルのみをミリ秒単位で再Embedding & DB/FAISS反映。
+- **Glossary Dictionary (`dictionary.py`)**:
+  - 新2列フォーマット（第1列: 専門用語（カンマ区切り）, 第2列: 意味・解説）および従来の3列フォーマットの自動認識。
+  - **SHA-256ハッシュ & mtime差分検知キャッシュ**: 通常検索時のExcel I/O負荷を完全ゼロ化。ファイル保存時のみ自動再ロード。
+  - 自然文クエリ補強（Query Enrichment）およびチャンクメタデータ自動注入（Chunk Enrichment）。
+  - Web UIモーダルエディタからのExcel直接生成・保存。
 - **Vector Search Engine (`searcher.py`)**:
   - **スコアキャリブレーション & ノイズフロア除去**: 無関係テキストの生内積（0.70未満）を急峻にカットし、真の合致文書（0.70〜0.98）と無関係なゴミ（0.00〜0.25）の間に明確なスコア差（マージン）を創出。
   - FAISS による高速 Top-K 抽出 + 日本語形態素キーワードブースト + 反応文特定（Salient Sentence Extraction）を統合。
+  - `SearchResultItem` に絶対パス `full_path` を自動付与。
+- **Open Hub & Native File Integration (`main.py`)**:
+  - 外部Open Hub（8001番）への307リダイレクト (`GET /api/open/file`)。
+  - OSネイティブ保存場所表示 (`POST /api/files/open-location`: macOS Finder / Windows Explorer)。
+
+---
 
 ## 2. データモデル (SQLite)
 
@@ -47,6 +62,6 @@
 | `id` | INTEGER PRIMARY KEY | チャンクID |
 | `document_id` | INTEGER NOT NULL | 親文書ID (FK) |
 | `chunk_index` | INTEGER NOT NULL | 文書内チャンク連番 (0-indexed) |
-| `text` | TEXT NOT NULL | チャンク本文（階層見出し・タグ付き） |
+| `text` | TEXT NOT NULL | チャンク本文（階層見出し・タグ・辞書メタデータ付き） |
 | `embedding` | BLOB NOT NULL | チャンクのEmbedding (float32) |
-| `embedding_dim` | INTEGER NOT NULL | ベクトルの次元数 |
+| `embedding_dim` | INTEGER NOT NULL | ベクトルの次元数 (768 or 256) |
