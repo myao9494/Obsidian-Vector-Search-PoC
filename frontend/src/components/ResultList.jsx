@@ -120,6 +120,7 @@ export function ResultList({ results, searchMode, query, responseData }) {
   const keywordQuery = responseData?.keyword_query || '';
   const ragXml = responseData?.rag_context_xml || '';
   const ragMd = responseData?.rag_context_markdown || '';
+  const detectedTerms = responseData?.detected_terms || [];
 
   const toggleSelect = (idKey) => {
     const next = new Set(selectedIds);
@@ -179,6 +180,36 @@ export function ResultList({ results, searchMode, query, responseData }) {
 
   return (
     <div className="card">
+      {/* 💡 検出された専門用語・類似語（Glossary）ボックス */}
+      {detectedTerms.length > 0 && (
+        <div className="glossary-detected-box">
+          <div className="glossary-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles size={16} color="#38bdf8" />
+              <span className="glossary-title">💡 検出された専門用語・同義語 (Excel辞書連携):</span>
+            </div>
+          </div>
+          <div className="glossary-cards-grid">
+            {detectedTerms.map((termItem, i) => (
+              <div key={i} className="glossary-term-card">
+                <div className="glossary-term-name">{termItem.term}</div>
+                {termItem.synonyms && termItem.synonyms.length > 0 && (
+                  <div className="glossary-term-synonyms">
+                    <span className="glossary-synonym-label">同義語:</span>
+                    {termItem.synonyms.map((syn, sIdx) => (
+                      <span key={sIdx} className="glossary-synonym-badge">{syn}</span>
+                    ))}
+                  </div>
+                )}
+                {termItem.description && (
+                  <div className="glossary-term-desc">{termItem.description}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 🏷️ 抽出キーワード (Hybrid Query) バッジ表示エリア */}
       {extractedKeywords.length > 0 && (
         <div className="keyword-extracted-box">

@@ -42,14 +42,21 @@
    - **🏷️ ハイブリッド検索用 抽出キーワード (Extracted Keywords & OR Query)**: クエリから重要単語を抽出（`extracted_keywords`）し、既存検索エンジンに渡せる `keyword_query`（例: `A OR B OR C`）を生成。
    - **🤖 AI（LLM）投入用 RAG コンテキスト生成 (XML / Markdown)**: 上位ヒット結果を LLM（ChatGPT / Claude / Gemini / ローカルLLM）にそのまま食べさせられる標準RAGフォーマット（`<context><document>...</document></context>` および Markdown引用形式）で生成。
    - **⚡ 高速反応文特定 (Salient Sentence Extraction)**: 上位3件の核心文を高速抽出してハイライト。
-9. **ネイティブGUIダイアログ (Dialog)**: OSのネイティブフォルダ選択ダイアログを呼び出し絶対パスを取得。
-10. **UI (React + Vite + PWA)**: 
+9. **📖 専門用語・類似語辞書連携 (Glossary / Synonyms Integration)**:
+   - **Excel (.xlsx) / CSV 自動読み込み**: Vault内の `glossary.xlsx` や `glossary.csv`（専門用語、類似語、意味・解説）を自動認識・ロード。
+   - **表記揺れの自動吸収**: 大文字/小文字、全角/半角、ハイフン有無（`PJ-X` ⇔ `PJX` ⇔ `ｐｊｘ`）を正規化して最長一致で検知。
+   - **自然文クエリのEmbedding補強 (Query Enrichment)**: 自然文の質問から用語を検知し、同義語・解説を付与してEmbedding化することで、過去ノートの別名表記とも高次元でマッチング。
+   - **インデックス時メタデータ自動補完 (Chunk Enrichment)**: 本文中の専門用語から同義語・解説を `[Aliases: ...]` `[Context: ...]` として自動注入。既存ノートを修正することなく過去資産を救済。
+   - **UI 用語解説カード表示**: 検索結果画面の上部に検知された社内専門用語・類似語・解説のカードを美しく表示。
+10. **ネイティブGUIダイアログ (Dialog)**: OSのネイティブフォルダ選択ダイアログを呼び出し絶対パスを取得。
+11. **UI (React + Vite + PWA)**: 
     - モデル2択ラジオ選択（標準 768d vs 超軽量 256d）。
+    - 💡 検出された専門用語・類似語（Glossary）カード表示。
     - 抽出キーワードバッジ表示 & ORクエリコピー。
     - 🤖 AI投入用コンテキストビューア（XML/Markdown切り替え ＆ プロンプト用コピー）。
     - 対象拡張子入力フィールドの搭載。
     - 関連度レベル別のカラーコーディング（極めて高い: 🟢, 高い: 🔵, 中程度: 🟡, 低: ⚪）。
     - キーワードハイライト（`<mark>` 表示）。
-11. **クロスプラットフォーム起動スクリプト**:
+12. **クロスプラットフォーム起動スクリプト**:
     - `start.bat`: Windowsコマンドプロンプトの文字コード（UTF-8 `chcp 65001` / `PYTHONUTF8=1` / `KMP_DUPLICATE_LIB_OK=TRUE`）、ポート60000自動解放対応。
     - `start.sh`: macOS / Linux 用シェルスクリプト（ポート自動解放、OpenMP多重初期化防止対応）。

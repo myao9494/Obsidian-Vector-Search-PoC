@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from app.db import get_db_stats
 from app.dialog import open_folder_dialog
+from app.dictionary import GlossaryDictionary
 from app.embedder import BaseEmbedder, Embedder, MockEmbedder
 from app.indexer import IndexManager, IndexProgress, IndexResult
 from app.searcher import SearchMode, VectorSearcher
@@ -218,6 +219,44 @@ def search(req: SearchRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"検索処理中にエラーが発生しました: {str(e)}")
+
+@app.get("/api/dictionary/status")
+def get_dictionary_status(vault_path: str):
+    """Vault内の専門用語・類似語辞書（.xlsx / .csv）の読み込み状況を取得"""
+    if not os.path.exists(vault_path):
+        return {"loaded": False, "total_entries": 0, "file_name": None, "terms": []}
+
+    vault_dir = Path(vault_path).resolve()
+    candidates = [
+        "glossary.xlsx", "dictionary.xlsx", "synonyms.xlsx",
+        "glossary.csv", "dictionary.csv", "synonyms.csv",
+        "用語集.xlsx", "用語集.csv"
+    ]
+    target_file = None
+    for c in candidates:
+        p = vault_dir / c
+        if p.exists():
+            target_file = str(p)
+            break
+
+    if not target_file:
+        return {"loaded": False, "total_entries": 0, "file_name": None, "terms": []}
+
+    try:
+        glossary = GlossaryDictionary.from_file(target_file)
+        sample_terms = [
+            {"term": e.term, "synonyms": e.synonyms, "description": e.description}
+            for e in glossary.entries[:10]
+        ]
+        return {
+            "loaded": True,
+            "total_entries": len(glossary.entries),
+            "file_name": Path(target_file).name,
+            "file_path": target_file,
+            "terms": sample_terms,
+        }
+    except Exception as e:
+        return {"loaded": False, "error": str(e), "total_entries": 0, "file_name": Path(target_file).name}
 
 
 # === 静的配信マウント (会社環境などNode.jsが無い環境用) ===

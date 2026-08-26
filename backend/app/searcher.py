@@ -23,6 +23,7 @@ from app.db import (
     get_chunk_with_context,
     get_document_by_id,
 )
+from app.dictionary import GlossaryDictionary
 from app.embedder import BaseEmbedder
 from app.faiss_index import FaissVectorIndex
 
@@ -61,6 +62,7 @@ class SearchResponse:
     keyword_query: str = ""
     rag_context_xml: str = ""
     rag_context_markdown: str = ""
+    detected_terms: List[Dict[str, Any]] = field(default_factory=list)
 
 
 def generate_rag_contexts(results: List[SearchResultItem], query: str) -> Tuple[str, str]:
@@ -297,15 +299,50 @@ def find_salient_sentence(
 
 
 class VectorSearcher:
-    """FAISSによる高速オフラインベクトル検索エンジン（キャリブレーションスコア & 反応文特定機能付き）"""
+    """FAISSによる高速オフラインベクトル検索エンジン（キャリブレーションスコア & 反応文特定 & 専門用語辞書連携機能付き）"""
 
-    def __init__(self, db_path: str, embedder: BaseEmbedder):
+    def __init__(
+        self,
+        db_path: str,
+        embedder: BaseEmbedder,
+        glossary: Optional[GlossaryDictionary] = None
+    ):
         self.db_path = db_path
         self.embedder = embedder
         self._doc_faiss_index: Optional[FaissVectorIndex] = None
         self._chunk_faiss_index: Optional[FaissVectorIndex] = None
         self._doc_rows_cache: Optional[Dict[int, Dict[str, Any]]] = None
         self._chunk_rows_cache: Optional[Dict[int, Dict[str, Any]]] = None
+
+        if glossary is not None:
+            self.glossary = glossary
+        else:
+            self.glossary = self._auto_load_glossary()
+
+    def _auto_load_glossary(self) -> Optional[GlossaryDictionary]:
+        """Vault内から辞書ファイル（.xlsx / .csv）を自動探索してロード"""
+        try:
+            db_file = Path(self.db_path).resolve()
+            # .vector_search ディレクトリの親（Vault）
+            vault_dir = db_file.parent.parent if db_file.parent.name == ".vector_search" else db_file.parent
+            if not vault_dir.exists():
+                return None
+
+            candidates = [
+                "glossary.xlsx", "dictionary.xlsx", "synonyms.xlsx",
+                "glossary.csv", "dictionary.csv", "synonyms.csv",
+                "用語集.xlsx", "用語集.csv"
+            ]
+            for c in candidates:
+                p = vault_dir / c
+                if p.exists():
+                    try:
+                        return GlossaryDictionary.from_file(str(p))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        return None
 
     def _ensure_faiss_indexes(self, mode: SearchMode):
         """FAISSインデックスをロードまたはSQLiteから構築"""
@@ -358,12 +395,17 @@ class VectorSearcher:
     ) -> SearchResponse:
         """
         指定されたクエリでFAISSベクトル検索を実行する。
+        専門用語・類似語辞書が存在する場合、自然文クエリを補強してEmbedding生成を行う。
         """
         t_total_start = time.perf_counter()
 
+        # 専門用語辞書による用語検知およびEmbedding用クエリ補強
+        detected_entries = self.glossary.detect_terms(query) if self.glossary else []
+        enriched_query = self.glossary.build_enriched_query(query) if self.glossary else query
+
         # 1. クエリのEmbedding生成
         t_emb_start = time.perf_counter()
-        query_vec = self.embedder.encode(query, is_query=True)
+        query_vec = self.embedder.encode(enriched_query, is_query=True)
         t_emb_end = time.perf_counter()
         query_emb_time_ms = round((t_emb_end - t_emb_start) * 1000, 2)
 
@@ -376,6 +418,18 @@ class VectorSearcher:
 
         results: List[SearchResultItem] = []
         keywords = extract_query_keywords(query) if keyword_boost else []
+
+        # 辞書で検知された用語・同義語・解説キーワードもキーワードブーストに追加
+        if keyword_boost and detected_entries:
+            for de in detected_entries:
+                for v in de.all_variants():
+                    if v and v not in keywords and len(v) >= 2:
+                        keywords.append(v)
+                if de.description:
+                    desc_kws = extract_query_keywords(de.description)
+                    for dk in desc_kws:
+                        if dk not in keywords and len(dk) >= 2:
+                            keywords.append(dk)
 
         if faiss_idx and total_candidates > 0:
             # 余裕を持ったTop-K件を取得し、キャリブレーションスコアリングを適用
@@ -481,6 +535,12 @@ class VectorSearcher:
         kw_query = " OR ".join(keywords) if keywords else query
         rag_xml, rag_md = generate_rag_contexts(results, query)
 
+        # 専門用語情報の辞書化
+        detected_terms_dicts = [
+            {"term": e.term, "synonyms": e.synonyms, "description": e.description}
+            for e in detected_entries
+        ]
+
         return SearchResponse(
             query=query,
             mode=mode,
@@ -493,4 +553,5 @@ class VectorSearcher:
             keyword_query=kw_query,
             rag_context_xml=rag_xml,
             rag_context_markdown=rag_md,
+            detected_terms=detected_terms_dicts,
         )

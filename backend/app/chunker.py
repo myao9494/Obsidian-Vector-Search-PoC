@@ -12,7 +12,7 @@ Markdown チャンキング最適化モジュール
 
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional, Set, Tuple
+from typing import Any, List, Optional, Set, Tuple
 
 
 @dataclass
@@ -28,17 +28,23 @@ class ExtractedMetadata:
     tags: List[str] = field(default_factory=list)
     aliases: List[str] = field(default_factory=list)
     keywords: List[str] = field(default_factory=list)
+    context_notes: List[str] = field(default_factory=list)
 
 
-def extract_metadata_and_clean(text: str) -> Tuple[str, ExtractedMetadata]:
+def extract_metadata_and_clean(
+    text: str,
+    glossary: Optional[Any] = None
+) -> Tuple[str, ExtractedMetadata]:
     """
     MarkdownテキストからFrontmatterの各種メタデータ（tags, aliases, 検索用, category）や
     本文ハッシュタグを抽出し、ヘッダーやExcalidraw描画データを除去したクリーン本文とメタデータを返す。
+    辞書（glossary）が渡された場合、本文中の専門用語から同義語・解説メタデータを自動補完する。
     """
     cleaned = text.strip()
     tags_set: Set[str] = set()
     aliases_set: Set[str] = set()
     keywords_set: Set[str] = set()
+    context_notes_set: Set[str] = set()
 
     # 1. YAML Frontmatter の抽出と完全除去
     if cleaned.startswith("---"):
@@ -137,17 +143,27 @@ def extract_metadata_and_clean(text: str) -> Tuple[str, ExtractedMetadata]:
         lines.append(line_clean)
 
     cleaned_text = "\n".join(lines).strip()
+
+    # 10. 辞書（glossary）によるメタデータ補完（本文中の用語からaliases/context抽出）
+    if glossary is not None and hasattr(glossary, "extract_enrichment_for_text"):
+        dict_aliases, dict_contexts = glossary.extract_enrichment_for_text(cleaned)
+        for a in dict_aliases:
+            aliases_set.add(a)
+        for c in dict_contexts:
+            context_notes_set.add(c)
+
     metadata = ExtractedMetadata(
         tags=sorted(list(tags_set)),
         aliases=sorted(list(aliases_set)),
-        keywords=sorted(list(keywords_set))
+        keywords=sorted(list(keywords_set)),
+        context_notes=sorted(list(context_notes_set))
     )
     return cleaned_text, metadata
 
 
-def clean_markdown_text(text: str) -> str:
+def clean_markdown_text(text: str, glossary: Optional[Any] = None) -> str:
     """後方互換用クレンジング関数"""
-    cleaned, _ = extract_metadata_and_clean(text)
+    cleaned, _ = extract_metadata_and_clean(text, glossary=glossary)
     return cleaned
 
 
@@ -156,12 +172,14 @@ def chunk_markdown(
     doc_title: str = "",
     chunk_size: int = 500,
     overlap: int = 80,
-    min_chunk_len: int = 15
+    min_chunk_len: int = 15,
+    glossary: Optional[Any] = None
 ) -> List[ChunkData]:
     """
     Markdownテキストを見出し階層・タグ・別名・キーワードメタデータを保持しながら高精度にチャンク分割する。
+    辞書（glossary）が指定された場合、本文中の専門用語から同義語・解説メタデータを自動補完して各チャンクに注入する。
     """
-    cleaned, metadata = extract_metadata_and_clean(text)
+    cleaned, metadata = extract_metadata_and_clean(text, glossary=glossary)
     
     # ノートタイトル（拡張子除去）
     base_title = re.sub(r"\.[a-zA-Z0-9]+$", "", doc_title).strip() if doc_title else ""
@@ -174,6 +192,8 @@ def chunk_markdown(
         meta_parts.append(f"[Aliases: {' '.join(metadata.aliases)}]")
     if metadata.keywords:
         meta_parts.append(f"[Keywords: {' '.join(metadata.keywords)}]")
+    if metadata.context_notes:
+        meta_parts.append(f"[Context: {' '.join(metadata.context_notes[:3])}]")
     
     meta_prefix = " ".join(meta_parts).strip()
 

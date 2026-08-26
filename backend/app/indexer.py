@@ -24,6 +24,7 @@ from app.db import (
     insert_chunks,
     upsert_document,
 )
+from app.dictionary import GlossaryDictionary
 from app.embedder import BaseEmbedder
 from app.scanner import DocumentMetadata, scan_vault
 
@@ -57,12 +58,69 @@ class IndexResult:
 class IndexManager:
     """Vaultのインデックス作成・差分更新・進捗管理を行うマネージャークラス"""
 
-    def __init__(self, vault_path: str, embedder: BaseEmbedder):
-        self.vault_path = Path(vault_path).resolve()
+    def __init__(
+        self,
+        vault_path: str = "",
+        embedder: Optional[BaseEmbedder] = None,
+        glossary: Optional[GlossaryDictionary] = None,
+        db_path: Optional[str] = None
+    ):
+        if db_path:
+            self.db_path = str(Path(db_path).resolve())
+            self.db_dir = Path(self.db_path).parent
+            self.vault_path = Path(vault_path).resolve() if vault_path else self.db_dir.parent
+        else:
+            self.vault_path = Path(vault_path).resolve()
+            self.db_dir = self.vault_path / ".vector_search"
+            self.db_path = str(self.db_dir / "index.db")
+
         self.embedder = embedder
-        self.db_dir = self.vault_path / ".vector_search"
-        self.db_path = str(self.db_dir / "index.db")
         init_db(self.db_path)
+
+        # 辞書の初期化（指定がない場合はVault直下を探索）
+        if glossary is not None:
+            self.glossary = glossary
+        else:
+            self.glossary = self._auto_load_glossary()
+
+    def _auto_load_glossary(self) -> Optional[GlossaryDictionary]:
+        """Vault内から辞書ファイル（.xlsx / .csv）を自動探索してロード"""
+        if not self.vault_path or not self.vault_path.exists():
+            return None
+
+        candidates = [
+            "glossary.xlsx", "dictionary.xlsx", "synonyms.xlsx",
+            "glossary.csv", "dictionary.csv", "synonyms.csv",
+            "用語集.xlsx", "用語集.csv"
+        ]
+        for c in candidates:
+            p = self.vault_path / c
+            if p.exists():
+                try:
+                    return GlossaryDictionary.from_file(str(p))
+                except Exception:
+                    pass
+        return None
+
+    def index_vault(
+        self,
+        vault_path: str = "",
+        chunk_size: int = 600,
+        chunk_overlap: int = 80,
+        force_reindex: bool = False,
+        target_extensions: Optional[List[str]] = None,
+    ) -> IndexResult:
+        """テストおよび汎用呼び出し用ラッパー"""
+        if vault_path:
+            self.vault_path = Path(vault_path).resolve()
+            if self.glossary is None:
+                self.glossary = self._auto_load_glossary()
+        return self.run_index(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            force_reindex=force_reindex,
+            target_extensions=target_extensions
+        )
 
     def run_index(
         self,
@@ -149,12 +207,13 @@ class IndexManager:
             else:
                 updated_count += 1
 
-            # チャンク分割（見出し階層・タグ情報を活用）
+            # チャンク分割（見出し階層・タグ情報・辞書メタデータを活用）
             chunks = chunk_markdown(
                 doc.text,
                 doc_title=doc.title or Path(doc.relative_path).name,
                 chunk_size=chunk_size,
                 overlap=chunk_overlap,
+                glossary=self.glossary,
             )
 
             # Embedding生成

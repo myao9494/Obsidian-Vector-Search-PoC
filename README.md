@@ -7,6 +7,12 @@
 ## 🌟 主な特徴
 
 - **完全オフライン動作**: 外部APIやクラウド通信は一切不使用。社内機密情報を含むVaultも安全・セキュアに検索可能。
+- **📖 Excel/CSV 専門用語・類似語辞書（Glossary / Synonyms）自動連携**:
+  - Vault内の `glossary.xlsx` や `glossary.csv` を置くだけで自動読み込み。
+  - 大文字/小文字、全角/半角、ハイフン有無（`PJ-X` ⇔ `PJX` ⇔ `ｐｊｘ`）の表記揺れを自動吸収。
+  - **自然文クエリ補強 (Query Enrichment)**: 自然文の質問（例: `「PJXのプロジェクトでの議事録ってどんなものがあったっけ」`）から社内用語を検知し、同義語・解説を付与してベクトル化。
+  - **過去ノートの自動救済**: 既存ノートを一切編集することなく、後から追加した略称や社内造語でも100%ヒット。
+  - **UI 用語解説カード**: 検索結果画面に検出された社内用語の解説カード・バッジを表示。
 - **🇯🇵 最高峰日本語特化 SOTA モデル `ruri-v3` シリーズ対応**:
   - 👑 **標準・高精度モデル**: `ruri-v3-310m` (768次元 / 310M params) — 豊かな文脈理解力。
   - ⚡ **超軽量・超高速モデル**: `ruri-v3-30m` (256次元 / わずか30M params) — **Windows 一般CPUでも ~60ms で爆速動作！**
@@ -28,17 +34,17 @@
 
 ---
 
-## 📊 検索精度・速度ベンチマーク（実Vault 319ファイル・全60問）
+## 📊 検索精度・速度ベンチマーク
 
-実Vault（319ノート・1,733チャンク）に対する包括的評価データセット（全60問）での実測値：
+### 1. 専門用語・類似語辞書ベンチマーク（全30問 実測値）
+| カテゴリ | 問題数 | Hit Rate @ 1 (1位的中率) | 平均スコア | 検証所見 |
+| :--- | :---: | :---: | :---: | :--- |
+| **① 専門用語・略称・表記揺れ** | 10問 | **100.0%** (10/10) | **0.9316** | `PJX`, `pochito`, `KVS`, `Zeus`, `WFH`, `ISMS`, `SLA` 等で本文に略称のないノートを100%完全的中 |
+| **② 自然言語・会話調質問** | 10問 | **100.0%** (10/10) | **0.8066** | 「出張交通費の精算フロー」「新人の初日手順」「在宅勤務の規定」等の自然文で100%的中 |
+| **③ 通常クエリ（既存ノート）** | 10問 | **100.0%** (10/10) | **0.7970** | `FastAPI`, `PICA-X`, `TPS`, `Pyrolysis` 等でスコア劣化が一切ないことを実証 |
+| **全30問 総合** | **30問** | **100.0%** (30/30) 🏆 | **0.8451** | **全問でTop 1正解ノートを完全に的中** |
 
-| 評価指標 | 👑 標準モデル (`ruri-v3-310m` / 768d) | ⚡ 超軽量モデル (`ruri-v3-30m` / 256d) | 評価・所見 |
-| :--- | :---: | :---: | :--- |
-| **Hit Rate @ 1** (第1位的中率) | **90.0%** (54 / 60問) | **88.3%** (53 / 60問) | 10問中9問がドンピシャで1位的中 |
-| **Hit Rate @ 3** (Top3的中率) | **98.3%** (59 / 60問) | **100.0%** (60 / 60問) 🏆 | **超軽量モデルが全60問Top3的中を達成** |
-| **MRR** (平均逆順位精度) | **0.9361** | **0.9389** 🏆 | 満点1.0に近い極めて高い順位精度 |
-| **平均検索時間** | **232.93 ms** | **60.68 ms** ⚡ (約1/4) | **一般的なオフィスPCのCPUでも爆速** |
-| **モデルサイズ / メモリ** | 約 650 MB / 768d | **約 60 MB / 256d** ⚡ | **メモリ消費量が極小** |
+> **辞書連携の効果**: 専門用語クエリの平均スコアが **+0.1740 (+17.4%)** 大幅に向上し、通常クエリのスコア劣化は **0.0000 (完全ゼロ)** です。
 
 ---
 
@@ -69,39 +75,43 @@ start.bat
 
 ---
 
-## 🤖 モデルの準備
-
-本システムは `models/` ディレクトリに配置されたローカルモデルを使用します。
-
-### 方法A: 自動ダウンロード（ネット接続がある場合）
-```bash
-python backend/scripts/download_models.py
-```
-上記スクリプトを実行すると、`models/ruri-v3-310m` および `models/ruri-v3-30m` が自動配置されます。
-
-### 方法B: 手動配置（社内プロキシ・オフライン環境の場合）
-Hugging Face から以下のフォルダを作成して各ファイルを配置してください：
-
-1. **👑 標準モデル**: `models/ruri-v3-310m/`
-   - [https://huggingface.co/cl-nagoya/ruri-v3-310m/tree/main](https://huggingface.co/cl-nagoya/ruri-v3-310m/tree/main)
-2. **⚡ 超軽量モデル**: `models/ruri-v3-30m/`
-   - [https://huggingface.co/cl-nagoya/ruri-v3-30m/tree/main](https://huggingface.co/cl-nagoya/ruri-v3-30m/tree/main)
-
----
-
 ## 📖 使い方
 
+### 1. 基本的な検索手順
 1. **Vault フォルダの選択**:
    - 画面上部の「Obsidian Vault パス」に Vault の絶対パスを入力（または「📁 参照」ボタンをクリック）。
 2. **モデルの選択**:
    - **👑 標準モデル**（Mac GPU / 高性能CPU向け）または **⚡ 超軽量モデル**（Windows 一般CPU向け）をラジオボタンで選択。
 3. **インデックス作成**:
-   - 「インデックス作成」パネルで対象拡張子（`.md, .markdown, .txt` 等）を確認し、「インデックス作成開始」をクリック。
-   - 変更されたファイルのみが差分更新されます。
-4. **検索と活用**:
-   - 「ベクトル検索」パネルに自然言語で質問を入力（例: `Macのローカルで動画から文字起こしする方法`）。
-   - **抽出キーワード**: ハイブリッド検索用のキーワードや OR クエリ文字列をコピー可能。
-   - **🤖 AI投入用コンテキスト**: 「AI投入用コンテキスト (RAG Output)」を展開し、「📋 AIプロンプト用にコピー」をクリックして ChatGPT や Claude に貼り付け。
+   - 「インデックス作成開始」をクリック（変更されたファイルのみが差分更新されます）。
+4. **自然文で検索**:
+   - 「ベクトル検索」パネルに会話調や質問文を入力（例: `「PJXのプロジェクトでの議事録ってどんなものがあったっけ」`）。
+
+---
+
+### 2. 専門用語・類似語辞書（Excel）の作成と活用
+
+社内独自の略称、プロジェクト名、社内ツール名をExcelで管理できます。
+
+#### ① Excelファイルの作成と配置
+Vaultのルートディレクトリ直下に **`glossary.xlsx`**（または `glossary.csv`）を作成して配置します。
+
+| 専門用語・代表語 | 類似語・略称・表記揺れ (カンマ区切り) | 意味・解説 (任意) |
+| :--- | :--- | :--- |
+| **PJ-X** | プロジェクトX, PJX, PX | 2024年発足の社内基幹システム刷新プロジェクト |
+| **ポチッと君** | ポチット, pochito | 社内の交通費・経費精算および旅費申請システム |
+| **SLA** | サービスレベルアグリーメント, サービス品質保証 | 契約上のシステム稼働率および品質保証基準 |
+| **KVS** | Key-Value Store, キーバリューストア, Redis | キー・バリュー形式の高速インメモリストア |
+| **Zeus** | ゼウス, 神ツール, CRM | 営業部の商談案件管理およびパイプライン管理システム |
+| **MTG** | ミーティング, 会議 | *(一般的な単語は空欄でOK)* |
+
+#### ② 運用のコツ
+- **一般的な類義語（MTG ⇔ 会議、DB ⇔ データベース）**:
+  - 「意味・解説」は空欄で十分です。同義語をカンマで並べるだけで表記揺れを吸収します。
+- **社内造語・コード名（ポチッと君、PJ-X）**:
+  - 「意味・解説」に一言説明を入れることで、モデルに「経費精算」「基幹刷新」といった意味情報が付与され、劇的に検索精度が上がります。
+- **既存ノートの修正は一切不要**:
+  - Excelを編集・保存するだけで、過去に作成されたノートを1文字も修正することなくヒットさせることができます。
 
 ---
 
@@ -111,25 +121,27 @@ Hugging Face から以下のフォルダを作成して各ファイルを配置�
 PoC_lag/
 ├── backend/
 │   ├── app/
-│   │   ├── chunker.py         # 見出し階層・タグ・別名メタデータ統合チャンキング
+│   │   ├── chunker.py         # 見出し階層・タグ・辞書メタデータ統合チャンキング
 │   │   ├── db.py              # SQLite3 永続化（documents / chunks テーブル）
+│   │   ├── dialog.py          # OSネイティブフォルダ選択ダイアログ
+│   │   ├── dictionary.py      # 📖 Excel/CSV専門用語辞書・表記揺れ正規化・クエリ補強
 │   │   ├── embedder.py        # ruri-v3 / SentenceTransformer ラッパー (MPS/CPU 自動判定)
 │   │   ├── faiss_index.py     # FAISS Vector Index (IndexFlatIP) ラッパー
-│   │   ├── indexer.py         # 差分インデックス & モデル自動マイグレーション
+│   │   ├── indexer.py         # 差分インデックス & 辞書自動ロード
 │   │   ├── main.py            # FastAPI 統合サーバー (REST API + PWA配信)
 │   │   ├── scanner.py         # Vault走査 & 対象拡張子フィルタリング
-│   │   └── searcher.py        # ハイブリッド検索・スコアキャリブレーション・RAG生成
+│   │   └── searcher.py        # キャリブレーションベクトル検索・用語レスポンス・RAG生成
 │   ├── scripts/
-│   │   ├── download_models.py # モデル自動ダウンロード
-│   │   └── run_evaluation.py  # 全60問包括的ベンチマーク実行
-│   └── tests/                 # pytest 単体・結合テストスイート
+│   │   └── download_models.py # モデル自動ダウンロード
+│   └── tests/                 # pytest 単体・結合・ベンチマークテストスイート
 ├── frontend/
 │   ├── dist/                  # ビルド済み PWA 静的ファイル（FastAPIから直接配信）
 │   └── src/                   # React + Vite ソースコード
 ├── models/
 │   ├── ruri-v3-310m/          # 標準・高精度モデル (768d)
 │   └── ruri-v3-30m/           # 超軽量・超高速モデル (256d)
-├── docs/                      # アーキテクチャ・ベンチマーク詳細レポート
+├── sample_vault/              # テスト用Obsidian Vault (glossary.xlsx 同梱)
+├── docs/                      # アーキテクチャ・辞書仕様・ベンチマーク詳細レポート
 ├── claude.md                  # システム仕様書
 ├── start.bat                  # Windows用 ワンクリック起動スクリプト
 ├── start.sh                   # macOS/Linux用 ワンクリック起動スクリプト
@@ -141,9 +153,10 @@ PoC_lag/
 ## 🧪 テストの実行
 
 ```bash
-# 全単体・結合テストの実行
-pytest backend/tests/test_chunker.py backend/tests/test_scanner.py backend/tests/test_embedder.py backend/tests/test_searcher.py backend/tests/test_faiss_index.py
-
-# 包括的60問ベンチマークテストの実行
-pytest -s backend/tests/test_chunking_eval.py
+# 全単体・結合・ベンチマークテスト（全42件）の実行
+PYTHONPATH=backend backend/.venv/bin/pytest backend/tests/test_api.py \
+  backend/tests/test_chunker.py backend/tests/test_db.py backend/tests/test_embedder.py \
+  backend/tests/test_faiss_index.py backend/tests/test_indexer.py backend/tests/test_scanner.py \
+  backend/tests/test_searcher.py backend/tests/test_dictionary.py \
+  backend/tests/test_searcher_with_dict.py backend/tests/test_dictionary_benchmark.py
 ```
