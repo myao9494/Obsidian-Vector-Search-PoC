@@ -8,10 +8,10 @@
  */
 
 import React, { useState } from 'react';
-import { Database, Play, RefreshCw, CheckCircle, Clock, FileText } from 'lucide-react';
+import { Database, Play, RefreshCw, CheckCircle, Clock, FileText, BookOpen } from 'lucide-react';
 import { startIndex, getVaultStats } from '../api/client';
 
-export function IndexPanel({ vaultPath, modelStatus, vaultStats, setVaultStats }) {
+export function IndexPanel({ vaultPath, modelStatus, vaultStats, setVaultStats, dictionaryStatus, onOpenGlossary }) {
   const [indexing, setIndexing] = useState(false);
   const [progress, setProgress] = useState(null);
   const [lastResult, setLastResult] = useState(null);
@@ -73,7 +73,23 @@ export function IndexPanel({ vaultPath, modelStatus, vaultStats, setVaultStats }
           <span>Vault インデックス</span>
         </div>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {/* 専門用語辞書 編集ボタン */}
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={onOpenGlossary}
+            title="専門用語・類似語辞書 (Excel/CSV) をWeb画面上で直接編集・保存"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <BookOpen size={15} color="#38bdf8" />
+            <span>📖 専門用語辞書</span>
+            {dictionaryStatus?.loaded && (
+              <span className="badge badge-subtle-cyan">
+                {dictionaryStatus.total_entries} 件
+              </span>
+            )}
+          </button>
+
           <label style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', cursor: 'pointer' }}>
             <input
               type="checkbox"

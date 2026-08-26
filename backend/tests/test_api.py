@@ -122,3 +122,47 @@ def test_update_file_api(client):
     assert data["total_time_ms"] > 0
     assert data["chunk_count"] >= 1
 
+
+def test_dictionary_save_and_status_api(client):
+    test_client, vault_path = client
+
+    # 初期状態（辞書ファイルなし）
+    st_res = test_client.get(f"/api/dictionary/status?vault_path={vault_path}")
+    assert st_res.status_code == 200
+    st_data = st_res.json()
+    assert st_data["loaded"] is False
+    assert st_data["total_entries"] == 0
+
+    # 辞書エントリを保存 (POST /api/dictionary/save)
+    save_payload = {
+        "vault_path": vault_path,
+        "file_name": "glossary.xlsx",
+        "entries": [
+            {
+                "terms": "PJ-X, プロジェクトX, PJX",
+                "description": "社内基幹システム刷新プロジェクト"
+            },
+            {
+                "terms": "ポチッと君, ポチット",
+                "description": "交通費・経費精算システム"
+            }
+        ]
+    }
+    save_res = test_client.post("/api/dictionary/save", json=save_payload)
+    assert save_res.status_code == 200
+    save_data = save_res.json()
+    assert save_data["success"] is True
+    assert save_data["total_entries"] == 2
+
+    # 保存後のステータス確認
+    st_res2 = test_client.get(f"/api/dictionary/status?vault_path={vault_path}")
+    assert st_res2.status_code == 200
+    st_data2 = st_res2.json()
+    assert st_data2["loaded"] is True
+    assert st_data2["total_entries"] == 2
+    assert st_data2["file_name"] == "glossary.xlsx"
+    assert len(st_data2["entries"]) == 2
+    assert st_data2["entries"][0]["term"] == "PJ-X"
+    assert "プロジェクトX" in st_data2["entries"][0]["synonyms"]
+
+

@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  BookOpen,
 } from 'lucide-react';
 
 /**
@@ -108,7 +109,7 @@ function getRelevanceInfo(rawScore) {
   }
 }
 
-export function ResultList({ results, searchMode, query, responseData }) {
+export function ResultList({ results, searchMode, query, responseData, onOpenGlossary }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [copied, setCopied] = useState(false);
   const [kwCopied, setKwCopied] = useState(false);
@@ -183,11 +184,22 @@ export function ResultList({ results, searchMode, query, responseData }) {
       {/* 💡 検出された専門用語・類似語（Glossary）ボックス */}
       {detectedTerms.length > 0 && (
         <div className="glossary-detected-box">
-          <div className="glossary-header">
+          <div className="glossary-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Sparkles size={16} color="#38bdf8" />
               <span className="glossary-title">💡 検出された専門用語・同義語 (Excel辞書連携):</span>
             </div>
+            {onOpenGlossary && (
+              <button
+                className="btn btn-secondary btn-xs"
+                onClick={onOpenGlossary}
+                style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                title="辞書エディタを開いて用語を追加・編集"
+              >
+                <BookOpen size={12} color="#38bdf8" />
+                <span>辞書を編集</span>
+              </button>
+            )}
           </div>
           <div className="glossary-cards-grid">
             {detectedTerms.map((termItem, i) => (

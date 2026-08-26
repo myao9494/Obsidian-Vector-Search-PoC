@@ -17,7 +17,8 @@ import { IndexPanel } from './components/IndexPanel';
 import { IncrementalBenchmarkPanel } from './components/IncrementalBenchmarkPanel';
 import { SearchPanel } from './components/SearchPanel';
 import { ResultList } from './components/ResultList';
-import { getModelStatus, getVaultStats, loadModel } from './api/client';
+import { GlossaryModal } from './components/GlossaryModal';
+import { getModelStatus, getVaultStats, loadModel, getDictionaryStatus } from './api/client';
 
 const STORAGE_KEYS = {
   VAULT_PATH: 'poc_vault_path',
@@ -46,6 +47,8 @@ export function App() {
 
   const [modelStatus, setModelStatus] = useState(null);
   const [vaultStats, setVaultStats] = useState(null);
+  const [dictionaryStatus, setDictionaryStatus] = useState(null);
+  const [isGlossaryModalOpen, setIsGlossaryModalOpen] = useState(false);
 
   const [searchMode, setSearchMode] = useState('chunk');
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,7 +73,7 @@ export function App() {
     if (selectedModelType) localStorage.setItem(STORAGE_KEYS.SELECTED_MODEL_TYPE, selectedModelType);
   }, [selectedModelType]);
 
-  // 初期ロード
+  // 初期ロード & ウィンドウフォーカス時の自動リフレッシュ（外部でExcel等を編集した場合の自動検知）
   useEffect(() => {
     const activePath = selectedModelType === 'standard' ? standardPath : lightPath;
     if (activePath) {
@@ -81,18 +84,34 @@ export function App() {
         });
     }
 
-    if (vaultPath) {
-      getVaultStats(vaultPath)
-        .then((st) => setVaultStats(st))
-        .catch(() => {});
-    }
-  }, []);
+    const refreshVaultAndDict = () => {
+      if (vaultPath) {
+        getVaultStats(vaultPath)
+          .then((st) => setVaultStats(st))
+          .catch(() => {});
+        getDictionaryStatus(vaultPath)
+          .then((st) => setDictionaryStatus(st))
+          .catch(() => {});
+      }
+    };
+
+    refreshVaultAndDict();
+
+    // ユーザーが外部のExcelアプリ等で編集してブラウザに戻ってきた際に自動更新
+    window.addEventListener('focus', refreshVaultAndDict);
+    return () => {
+      window.removeEventListener('focus', refreshVaultAndDict);
+    };
+  }, [vaultPath]);
 
   const handleVaultChanged = (path) => {
     if (path) {
       getVaultStats(path)
         .then((st) => setVaultStats(st))
         .catch(() => setVaultStats(null));
+      getDictionaryStatus(path)
+        .then((st) => setDictionaryStatus(st))
+        .catch(() => setDictionaryStatus(null));
     }
   };
 
@@ -145,6 +164,8 @@ export function App() {
         modelStatus={modelStatus}
         vaultStats={vaultStats}
         setVaultStats={setVaultStats}
+        dictionaryStatus={dictionaryStatus}
+        onOpenGlossary={() => setIsGlossaryModalOpen(true)}
       />
 
       {/* 差分更新ライブ検証パネル */}
@@ -180,9 +201,21 @@ export function App() {
         searchMode={searchMode}
         query={searchQuery}
         responseData={searchResponseData}
+        onOpenGlossary={() => setIsGlossaryModalOpen(true)}
+      />
+
+      {/* 専門用語辞書モーダルエディタ */}
+      <GlossaryModal
+        isOpen={isGlossaryModalOpen}
+        onClose={() => setIsGlossaryModalOpen(false)}
+        vaultPath={vaultPath}
+        onDictionarySaved={(newStatus) => {
+          setDictionaryStatus(newStatus);
+        }}
       />
     </div>
   );
 }
 
 export default App;
+

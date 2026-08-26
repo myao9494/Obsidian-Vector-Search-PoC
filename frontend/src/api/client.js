@@ -122,3 +122,27 @@ export async function updateSingleFile(vaultPath, relativePath, content = null, 
   return await res.json();
 }
 
+export async function getDictionaryStatus(vaultPath) {
+  const res = await fetch(`${API_BASE}/dictionary/status?vault_path=${encodeURIComponent(vaultPath)}`);
+  if (!res.ok) throw new Error('専門用語辞書ステータスの取得に失敗しました');
+  return await res.json();
+}
+
+export async function saveDictionary(vaultPath, entries, fileName = 'glossary.xlsx') {
+  const res = await fetch(`${API_BASE}/dictionary/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      vault_path: vaultPath,
+      file_name: fileName,
+      entries,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || '専門用語辞書の保存に失敗しました');
+  }
+  return await res.json();
+}
+
+

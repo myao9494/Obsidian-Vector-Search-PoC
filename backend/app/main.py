@@ -97,6 +97,19 @@ class SearchRequest(BaseModel):
     boost_weight: float = 0.08
 
 
+class DictionaryEntryModel(BaseModel):
+    terms: Optional[str] = None
+    term: Optional[str] = None
+    synonyms: Optional[List[str]] = None
+    description: Optional[str] = ""
+
+
+class DictionarySaveRequest(BaseModel):
+    vault_path: str
+    file_name: Optional[str] = "glossary.xlsx"
+    entries: List[DictionaryEntryModel]
+
+
 # === エンドポイント ===
 @app.get("/api/health")
 def health_check():
@@ -250,11 +263,12 @@ def search(req: SearchRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"検索処理中にエラーが発生しました: {str(e)}")
 
+
 @app.get("/api/dictionary/status")
 def get_dictionary_status(vault_path: str):
-    """Vault内の専門用語・類似語辞書（.xlsx / .csv）の読み込み状況を取得"""
+    """Vault内の専門用語・類似語辞書（.xlsx / .csv）の読み込み状況および全エントリを取得"""
     if not os.path.exists(vault_path):
-        return {"loaded": False, "total_entries": 0, "file_name": None, "terms": []}
+        return {"loaded": False, "total_entries": 0, "file_name": None, "file_path": None, "terms": [], "entries": []}
 
     vault_dir = Path(vault_path).resolve()
     candidates = [
@@ -270,10 +284,11 @@ def get_dictionary_status(vault_path: str):
             break
 
     if not target_file:
-        return {"loaded": False, "total_entries": 0, "file_name": None, "terms": []}
+        return {"loaded": False, "total_entries": 0, "file_name": None, "file_path": None, "terms": [], "entries": []}
 
     try:
         glossary = GlossaryDictionary.from_file(target_file)
+        all_entries = [e.to_dict() for e in glossary.entries]
         sample_terms = [
             {"term": e.term, "synonyms": e.synonyms, "description": e.description}
             for e in glossary.entries[:10]
@@ -284,9 +299,50 @@ def get_dictionary_status(vault_path: str):
             "file_name": Path(target_file).name,
             "file_path": target_file,
             "terms": sample_terms,
+            "entries": all_entries,
         }
     except Exception as e:
-        return {"loaded": False, "error": str(e), "total_entries": 0, "file_name": Path(target_file).name}
+        return {"loaded": False, "error": str(e), "total_entries": 0, "file_name": Path(target_file).name, "entries": []}
+
+
+@app.post("/api/dictionary/save")
+def save_dictionary(req: DictionarySaveRequest):
+    """
+    Web UIから渡された専門用語辞書エントリをVault内のExcelファイル (.xlsx) として書き込み保存する。
+    """
+    if not os.path.exists(req.vault_path):
+        raise HTTPException(status_code=400, detail=f"指定されたVaultパスが存在しません: {req.vault_path}")
+
+    vault_dir = Path(req.vault_path).resolve()
+    file_name = req.file_name or "glossary.xlsx"
+    if not file_name.endswith(".xlsx"):
+        file_name = f"{file_name}.xlsx"
+
+    target_file = str(vault_dir / file_name)
+
+    try:
+        # entries の辞書リスト化
+        entries_data = [
+            e.model_dump() if hasattr(e, "model_dump") else (e.dict() if hasattr(e, "dict") else dict(e))
+            for e in req.entries
+        ]
+        GlossaryDictionary.save_to_excel(target_file, entries_data)
+
+        # 保存後の辞書を再読み込みして検証
+        glossary = GlossaryDictionary.from_file(target_file)
+        all_entries = [e.to_dict() for e in glossary.entries]
+
+        return {
+            "success": True,
+            "message": f"専門用語辞書を保存しました: {file_name}",
+            "file_name": file_name,
+            "file_path": target_file,
+            "total_entries": len(glossary.entries),
+            "entries": all_entries,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"辞書ファイルの保存に失敗しました: {str(e)}")
+
 
 
 # === 静的配信マウント (会社環境などNode.jsが無い環境用) ===
