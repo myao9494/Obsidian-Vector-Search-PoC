@@ -68,11 +68,16 @@ export async function getIndexProgress() {
   return await res.json();
 }
 
-export async function getVaultStats(vaultPath) {
-  const res = await fetch(`${API_BASE}/index/stats?vault_path=${encodeURIComponent(vaultPath)}`);
+export async function getVaultStats(vaultPath, modelPath = null) {
+  let url = `${API_BASE}/index/stats?vault_path=${encodeURIComponent(vaultPath)}`;
+  if (modelPath) {
+    url += `&model_path=${encodeURIComponent(modelPath)}`;
+  }
+  const res = await fetch(url);
   if (!res.ok) throw new Error('統計情報の取得に失敗しました');
   return await res.json();
 }
+
 
 export async function searchVector(
   vaultPath,
@@ -146,6 +151,7 @@ export async function saveDictionary(vaultPath, entries, fileName = 'glossary.xl
 }
 
 export async function openFileLocation(path) {
+
   const res = await fetch(`${API_BASE}/files/open-location`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -157,6 +163,79 @@ export async function openFileLocation(path) {
   }
   return await res.json();
 }
+
+export async function searchHybrid(
+
+  vaultPath,
+  query,
+  keywordApiUrl = 'http://127.0.0.1:8079',
+  mode = 'chunk',
+  topK = 20,
+  vectorWeight = 0.5,
+  keywordWeight = 0.5,
+  fusionMethod = 'rrf',
+  rrfK = 60,
+  keywordQueryOverride = null
+) {
+  const res = await fetch(`${API_BASE}/hybrid/search`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      vault_path: vaultPath,
+      query,
+      keyword_api_url: keywordApiUrl,
+      mode,
+      top_k: topK,
+      vector_weight: vectorWeight,
+      keyword_weight: keywordWeight,
+      fusion_method: fusionMethod,
+      rrf_k: rrfK,
+      keyword_query_override: keywordQueryOverride,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || 'ハイブリッド検索に失敗しました');
+  }
+  return await res.json();
+}
+
+export async function getKeywordApiStatus(keywordApiUrl = 'http://127.0.0.1:8079') {
+  const res = await fetch(
+    `${API_BASE}/hybrid/keyword-api-status?keyword_api_url=${encodeURIComponent(keywordApiUrl)}`
+  );
+  if (!res.ok) throw new Error('キーワードAPIステータスの取得に失敗しました');
+  return await res.json();
+}
+
+export async function exportAiHtml(
+  vaultPath,
+  relativePaths,
+  prompt = '',
+  title = 'AIコンテキスト統合ドキュメント',
+  includeRawMarkdown = true,
+  includeImages = true
+) {
+  const res = await fetch(`${API_BASE}/export/ai-html`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      vault_path: vaultPath,
+      relative_paths: relativePaths,
+      prompt,
+      title,
+      include_raw_markdown: includeRawMarkdown,
+      include_images: includeImages,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || 'HTMLエクスポートに失敗しました');
+  }
+  return await res.json();
+}
+
+
 
 
 

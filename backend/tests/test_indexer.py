@@ -49,7 +49,8 @@ def test_initial_index(mock_vault):
     assert result.deleted_count == 0
     assert result.chunk_count >= 2
     assert len(progress_events) >= 2
-    assert os.path.exists(mock_vault / ".vector_search" / "index.db")
+    assert os.path.exists(manager.db_path)
+
 
 
 def test_incremental_index(mock_vault):

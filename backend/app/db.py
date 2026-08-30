@@ -1,18 +1,21 @@
 """
 SQLite データベース管理モジュール
 仕様:
-- <Vault>/.vector_search/index.db の作成およびテーブル定義（documents, chunks）を管理する。
+- <Vault>/.vector_search/index_<model_name>.db の作成およびテーブル定義（documents, chunks）をモデル別に独立管理する。
 - ドキュメント情報およびチャンク情報の永続化、更新、削除を高速に行う。
 - Embedding（BLOB）の格納とメモリロードをサポートする。
 - チャンクIDから同一文書内の直前（prev）および直後（next）のチャンクを含む文脈情報を取得する。
-- DBファイルサイズ、登録件数等の統計情報を集計する。
+- DBファイルサイズ、登録件数等の統計情報をモデル別に集計する。
+- モデル識別子の抽出（get_model_identifier）およびモデル別DBパスの解決（get_model_db_path）を提供する。
 """
 
 import os
+import re
 import sqlite3
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
 
 
 def get_db_connection(db_path: str) -> sqlite3.Connection:
@@ -291,3 +294,126 @@ def clear_all_data(db_path: str) -> None:
         cursor.execute("DELETE FROM chunks")
         cursor.execute("DELETE FROM documents")
         conn.commit()
+
+
+def sanitize_model_name(name: str) -> str:
+    """ファイル名として安全なモデル名に正規化・サニタイズする"""
+    if not name:
+        return "default"
+    # 末尾スラッシュやパスセパレータを取り除いてファイル/フォルダ名を取得
+    base_name = Path(name.rstrip("/\\")).name
+    if not base_name:
+        base_name = name.strip("/\\")
+    # 使用禁止文字をアンダースコアに置換
+    sanitized = re.sub(r"[^a-zA-Z0-9_\-\.]", "_", base_name)
+    sanitized = re.sub(r"_+", "_", sanitized).strip("._")
+    return sanitized or "default"
+
+
+def get_model_identifier(
+    model_path: Optional[str] = None,
+    embedder: Optional[Any] = None
+) -> str:
+    """
+    モデルパスまたはEmbedderインスタンスから識別子文字列を生成する。
+    例: "ruri-v3-310m", "ruri-v3-30m", "mock"
+    """
+    if embedder is not None:
+        if hasattr(embedder, "model_path") and embedder.model_path:
+            return sanitize_model_name(str(embedder.model_path))
+        embedder_cls_name = embedder.__class__.__name__.lower()
+        if "mock" in embedder_cls_name:
+            dim = getattr(embedder, "embedding_dim", 384)
+            return f"mock_{dim}"
+        return sanitize_model_name(embedder_cls_name)
+
+    if model_path:
+        if model_path.lower() in ("mock", "test", "dummy"):
+            return "mock"
+        return sanitize_model_name(model_path)
+
+    return "default"
+
+
+def get_model_db_path(
+    vault_path: str,
+    model_path: Optional[str] = None,
+    embedder: Optional[Any] = None
+) -> str:
+    """
+    Vaultパスとモデル情報から、該当モデル専用のSQLite DBパスを解決する。
+    例: <vault_path>/.vector_search/index_ruri-v3-310m.db
+    """
+    model_id = get_model_identifier(model_path=model_path, embedder=embedder)
+    vault_dir = Path(vault_path).resolve()
+    db_dir = vault_dir / ".vector_search"
+    db_dir.mkdir(parents=True, exist_ok=True)
+    target_db = db_dir / f"index_{model_id}.db"
+
+    # レガシー index.db の自動移行（もし index_<model_id>.db が無く、次元数が一致する index.db がある場合）
+    if not target_db.exists():
+        legacy_db = db_dir / "index.db"
+        if legacy_db.exists():
+            legacy_dim = get_db_embedding_dim(str(legacy_db))
+            expected_dim = getattr(embedder, "embedding_dim", None) if embedder else None
+            if expected_dim is None:
+                if "310m" in model_id:
+                    expected_dim = 768
+                elif "30m" in model_id:
+                    expected_dim = 256
+
+            if legacy_dim is not None and expected_dim is not None and legacy_dim == expected_dim:
+                try:
+                    # 安全にリネーム移行
+                    legacy_db.rename(target_db)
+                    for ext in ["-shm", "-wal"]:
+                        shm_wal = db_dir / f"index.db{ext}"
+                        if shm_wal.exists():
+                            shm_wal.rename(db_dir / f"index_{model_id}.db{ext}")
+                except Exception:
+                    return str(legacy_db)
+
+    return str(target_db)
+
+
+def get_all_vault_models_stats(vault_path: str) -> Dict[str, Dict[str, Any]]:
+    """
+    Vault内の .vector_search ディレクトリにある全モデルのDB統計情報を集計する。
+    返却形式:
+    {
+        "ruri-v3-310m": {"document_count": 100, "chunk_count": 500, "db_size_mb": 3.2, "db_path": "..."},
+        "ruri-v3-30m": {"document_count": 100, "chunk_count": 500, "db_size_mb": 1.1, "db_path": "..."}
+    }
+    """
+    stats_map: Dict[str, Dict[str, Any]] = {}
+    vault_dir = Path(vault_path).resolve()
+    db_dir = vault_dir / ".vector_search"
+    if not db_dir.exists():
+        return stats_map
+
+
+    for db_file in db_dir.glob("*.db"):
+        file_name = db_file.name
+        # index_<model>.db または index.db
+        if file_name.startswith("index_") and file_name.endswith(".db"):
+            model_key = file_name[len("index_"):-len(".db")]
+        elif file_name == "index.db":
+            # 次元の自動判定
+            dim = get_db_embedding_dim(str(db_file))
+            if dim == 256:
+                model_key = "ruri-v3-30m"
+            elif dim == 768:
+                model_key = "ruri-v3-310m"
+            else:
+                model_key = f"legacy_dim_{dim}" if dim else "legacy_default"
+        else:
+            continue
+
+        db_stat = get_db_stats(str(db_file))
+        db_stat["db_path"] = str(db_file)
+        db_stat["embedding_dim"] = get_db_embedding_dim(str(db_file))
+        stats_map[model_key] = db_stat
+
+    return stats_map
+
+

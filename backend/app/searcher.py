@@ -22,6 +22,7 @@ from app.db import (
     get_all_document_embeddings,
     get_chunk_with_context,
     get_document_by_id,
+    get_model_db_path,
 )
 from app.dictionary import GlossaryDictionary
 from app.embedder import BaseEmbedder
@@ -309,8 +310,20 @@ class VectorSearcher:
         embedder: BaseEmbedder,
         glossary: Optional[GlossaryDictionary] = None
     ):
-        self.db_path = db_path
         self.embedder = embedder
+        resolved_db_path = str(Path(db_path).resolve())
+
+        # DBパスの自動解決（指定されたパスが存在せず、モデル別DBが存在する場合はそちらを適用）
+        if not os.path.exists(resolved_db_path):
+            p = Path(resolved_db_path)
+            vault_dir = p.parent.parent if p.parent.name == ".vector_search" else p.parent
+            model_db = get_model_db_path(str(vault_dir), embedder=self.embedder)
+            if os.path.exists(model_db):
+                resolved_db_path = model_db
+            elif os.path.exists(str(p.parent / "index.db")):
+                resolved_db_path = str(p.parent / "index.db")
+
+        self.db_path = resolved_db_path
         self._doc_faiss_index: Optional[FaissVectorIndex] = None
         self._chunk_faiss_index: Optional[FaissVectorIndex] = None
         self._doc_rows_cache: Optional[Dict[int, Dict[str, Any]]] = None
@@ -320,6 +333,7 @@ class VectorSearcher:
             self.glossary = glossary
         else:
             self.glossary = self._auto_load_glossary()
+
 
     def _auto_load_glossary(self) -> Optional[GlossaryDictionary]:
         """Vault内から辞書ファイル（.xlsx / .csv）を自動探索してロード"""

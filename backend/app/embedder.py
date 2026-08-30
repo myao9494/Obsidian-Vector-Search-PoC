@@ -39,6 +39,8 @@ def auto_detect_device() -> str:
 
 class BaseEmbedder:
     """Embedderの基底抽象インターフェース"""
+    model_path: Optional[str] = None
+
     @property
     def embedding_dim(self) -> int:
         raise NotImplementedError
@@ -55,8 +57,9 @@ class MockEmbedder(BaseEmbedder):
     テスト・PoC初期検証用の決定論的モックEmbedder
     文字列のハッシュ値から一定次元の正規化乱数ベクトルを生成する。
     """
-    def __init__(self, dim: int = 768):
+    def __init__(self, dim: int = 768, model_path: Optional[str] = None):
         self._dim = dim
+        self.model_path = model_path
 
     @property
     def embedding_dim(self) -> int:
@@ -90,10 +93,12 @@ class Embedder(BaseEmbedder):
         if not resolved_path.exists() or not resolved_path.is_dir():
             raise ValueError(f"指定されたローカルモデルパスが存在しないかディレクトリではありません: {model_path}")
 
+        self.model_path = str(resolved_path)
         self.model_path_str = str(resolved_path)
         path_lower = self.model_path_str.lower()
         self.is_ruri = "ruri" in path_lower
         self.is_e5 = "e5" in path_lower
+
 
         if device is None or device == "auto":
             self.device = auto_detect_device()

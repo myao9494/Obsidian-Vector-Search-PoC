@@ -8,20 +8,33 @@ FastAPI メインサーバーモジュール
 
 import asyncio
 import os
+import re
 import threading
+import urllib.parse
 from dataclasses import asdict
 from pathlib import Path
+
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from app.db import get_db_stats
+from app.db import (
+    get_all_vault_models_stats,
+    get_db_embedding_dim,
+    get_db_stats,
+    get_model_db_path,
+    get_model_identifier,
+)
 from app.dialog import open_folder_dialog
 from app.dictionary import GlossaryDictionary
 from app.embedder import BaseEmbedder, Embedder, MockEmbedder
 from app.indexer import IndexManager, IndexProgress, IndexResult
 from app.searcher import SearchMode, VectorSearcher
+from app.hybrid_searcher import HybridSearcher, reciprocal_rank_fusion, weighted_score_fusion
+from app.html_exporter import export_documents_to_html
+
+
 
 
 class AppState:
@@ -95,6 +108,38 @@ class SearchRequest(BaseModel):
     min_score: float = 0.0
     keyword_boost: bool = True
     boost_weight: float = 0.08
+
+
+class HybridSearchRequest(BaseModel):
+    vault_path: str
+    query: str
+    keyword_api_url: str = "http://127.0.0.1:8079"
+    mode: str = "chunk"  # "document" or "chunk"
+    top_k: int = 20
+    vector_weight: float = 0.5
+    keyword_weight: float = 0.5
+    fusion_method: str = "rrf"  # "rrf" or "weighted"
+    rrf_k: int = 60
+    keyword_query_override: Optional[str] = None
+
+
+class AiHtmlExportRequest(BaseModel):
+    vault_path: str
+    relative_paths: List[str]
+    prompt: Optional[str] = ""
+    title: Optional[str] = "AIコンテキスト統合ドキュメント"
+    include_raw_markdown: bool = True
+    include_images: bool = True
+
+
+class AiHtmlExportResponse(BaseModel):
+    html_content: str
+    file_name: str
+    total_documents: int
+    total_images_embedded: int
+    size_bytes: int
+
+
 
 
 import platform
@@ -299,25 +344,64 @@ def get_index_progress():
 
 
 @app.get("/api/index/stats")
-def get_stats(vault_path: str):
-    """VaultのSQLite DB統計を取得"""
-    db_path = os.path.join(vault_path, ".vector_search", "index.db")
+def get_stats(vault_path: str, model_path: Optional[str] = None):
+    """VaultのSQLite DB統計を取得（モデル別対応）"""
+    if not os.path.exists(vault_path):
+        return {
+            "document_count": 0,
+            "chunk_count": 0,
+            "db_size_bytes": 0,
+            "db_size_mb": 0.0,
+            "current_model_id": None,
+            "models": {},
+        }
+
+    # 対象モデルの特定
+    target_embedder = None
+    target_path = model_path
+    if not target_path and state.embedder is not None:
+        target_embedder = state.embedder
+        target_path = state.model_path
+
+    db_path = get_model_db_path(vault_path, model_path=target_path, embedder=target_embedder)
+    
+    # 互換性フォールバック: モデル別DBが存在せず legacy index.db が存在する場合
+    if not os.path.exists(db_path):
+        legacy_db = os.path.join(vault_path, ".vector_search", "index.db")
+        if os.path.exists(legacy_db):
+            db_path = legacy_db
+
     stats = get_db_stats(db_path)
+    stats["current_model_id"] = get_model_identifier(model_path=target_path, embedder=target_embedder)
+    stats["models"] = get_all_vault_models_stats(vault_path)
     return stats
 
 
 @app.post("/api/search")
 def search(req: SearchRequest):
-    """ベクトル検索の実行"""
+    """ベクトル検索の実行（モデル別インデックス対応）"""
     if not os.path.exists(req.vault_path):
         raise HTTPException(status_code=400, detail=f"Vaultパスが存在しません: {req.vault_path}")
 
-    db_path = os.path.join(req.vault_path, ".vector_search", "index.db")
-    if not os.path.exists(db_path):
-        raise HTTPException(status_code=400, detail="インデックスが存在しません。先にインデックスを作成してください。")
-
     if state.embedder is None:
-        raise HTTPException(status_code=400, detail="モデルがロードされていません。")
+        raise HTTPException(status_code=400, detail="モデルがロードされていません。先にモデルをロードしてください。")
+
+    model_id = get_model_identifier(embedder=state.embedder)
+    db_path = get_model_db_path(req.vault_path, embedder=state.embedder)
+
+    # 互換性フォールバック: モデル別DBが存在せず legacy index.db があり次元数が一致する場合
+    if not os.path.exists(db_path):
+        legacy_db = os.path.join(req.vault_path, ".vector_search", "index.db")
+        if os.path.exists(legacy_db):
+            dim = get_db_embedding_dim(legacy_db)
+            if dim == state.embedder.embedding_dim:
+                db_path = legacy_db
+
+    if not os.path.exists(db_path):
+        raise HTTPException(
+            status_code=400,
+            detail=f"モデル（{model_id}）のインデックスが存在しません。先にインデックスを作成してください。"
+        )
 
     mode = SearchMode.DOCUMENT if req.mode.lower() == "document" else SearchMode.CHUNK
     searcher = VectorSearcher(db_path=db_path, embedder=state.embedder)
@@ -336,6 +420,62 @@ def search(req: SearchRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"検索処理中にエラーが発生しました: {str(e)}")
+
+
+@app.get("/api/hybrid/keyword-api-status")
+def get_keyword_api_status(keyword_api_url: str = "http://127.0.0.1:8079"):
+    """キーワード検索API (Local-fulltext-search) の稼働状態を確認"""
+    hybrid_searcher = HybridSearcher(vector_searcher=None, keyword_api_url=keyword_api_url)
+    return hybrid_searcher.check_keyword_api_status()
+
+
+@app.post("/api/hybrid/search")
+def hybrid_search(req: HybridSearchRequest):
+    """ハイブリッド検索（ベクトル検索 × キーワード検索API融合 / モデル別インデックス対応）の実行"""
+    if not os.path.exists(req.vault_path):
+        raise HTTPException(status_code=400, detail=f"Vaultパスが存在しません: {req.vault_path}")
+
+    if state.embedder is None:
+        raise HTTPException(status_code=400, detail="モデルがロードされていません。先にモデルをロードしてください。")
+
+    model_id = get_model_identifier(embedder=state.embedder)
+    db_path = get_model_db_path(req.vault_path, embedder=state.embedder)
+
+    # 互換性フォールバック: モデル別DBが存在せず legacy index.db があり次元数が一致する場合
+    if not os.path.exists(db_path):
+        legacy_db = os.path.join(req.vault_path, ".vector_search", "index.db")
+        if os.path.exists(legacy_db):
+            dim = get_db_embedding_dim(legacy_db)
+            if dim == state.embedder.embedding_dim:
+                db_path = legacy_db
+
+    if not os.path.exists(db_path):
+        raise HTTPException(
+            status_code=400,
+            detail=f"モデル（{model_id}）のインデックスが存在しません。先にインデックスを作成してください。"
+        )
+
+    searcher = VectorSearcher(db_path=db_path, embedder=state.embedder)
+    hybrid_searcher = HybridSearcher(vector_searcher=searcher, keyword_api_url=req.keyword_api_url)
+
+    try:
+        response = hybrid_searcher.search(
+            query=req.query,
+            vault_path=req.vault_path,
+            mode=req.mode,
+            top_k=req.top_k,
+            vector_weight=req.vector_weight,
+            keyword_weight=req.keyword_weight,
+            fusion_method=req.fusion_method,
+            rrf_k=req.rrf_k,
+            keyword_query_override=req.keyword_query_override,
+        )
+        return asdict(response)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ハイブリッド検索処理中にエラーが発生しました: {str(e)}")
+
 
 
 @app.get("/api/dictionary/status")
@@ -416,6 +556,79 @@ def save_dictionary(req: DictionarySaveRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"辞書ファイルの保存に失敗しました: {str(e)}")
+
+
+@app.post("/api/export/ai-html", response_model=AiHtmlExportResponse)
+def export_ai_html_endpoint(req: AiHtmlExportRequest):
+    """
+    選択されたMarkdownドキュメント群および共通プロンプト、インライン画像（Base64）を結合した自己完結HTMLを生成する
+    """
+    if not os.path.exists(req.vault_path):
+        raise HTTPException(status_code=400, detail=f"Vaultパスが存在しません: {req.vault_path}")
+
+    if not req.relative_paths:
+        raise HTTPException(status_code=400, detail="対象ドキュメントが選択されていません。")
+
+    try:
+        html_content, stats = export_documents_to_html(
+            vault_path=req.vault_path,
+            relative_paths=req.relative_paths,
+            prompt=req.prompt or "",
+            title=req.title or "AIコンテキスト統合ドキュメント",
+            include_raw_markdown=req.include_raw_markdown,
+            include_images=req.include_images,
+        )
+
+        safe_title = re.sub(r'[\\/*?:"<>| ]+', "_", req.title or "AI_Context").strip("_")
+        file_name = f"{safe_title}.html" if safe_title else "ai_context.html"
+
+        return AiHtmlExportResponse(
+            html_content=html_content,
+            file_name=file_name,
+            total_documents=stats["total_documents"],
+            total_images_embedded=stats["total_images_embedded"],
+            size_bytes=stats["size_bytes"],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"HTMLエクスポート処理中にエラーが発生しました: {str(e)}")
+
+
+@app.post("/api/export/ai-html/download")
+def download_ai_html_endpoint(req: AiHtmlExportRequest):
+    """
+    生成された自己完結HTMLをブラウザから直接ダウンロードするためのエンドポイント
+    """
+    from fastapi.responses import Response
+
+    if not os.path.exists(req.vault_path):
+        raise HTTPException(status_code=400, detail=f"Vaultパスが存在しません: {req.vault_path}")
+
+    if not req.relative_paths:
+        raise HTTPException(status_code=400, detail="対象ドキュメントが選択されていません。")
+
+    try:
+        html_content, _ = export_documents_to_html(
+            vault_path=req.vault_path,
+            relative_paths=req.relative_paths,
+            prompt=req.prompt or "",
+            title=req.title or "AIコンテキスト統合ドキュメント",
+            include_raw_markdown=req.include_raw_markdown,
+            include_images=req.include_images,
+        )
+
+        safe_title = re.sub(r'[\\/*?:"<>| ]+', "_", req.title or "AI_Context").strip("_")
+        file_name = f"{safe_title}.html" if safe_title else "ai_context.html"
+
+        return Response(
+            content=html_content.encode("utf-8"),
+            media_type="text/html; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{urllib.parse.quote(file_name)}"',
+            },
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ダウンロード生成エラー: {str(e)}")
+
 
 
 

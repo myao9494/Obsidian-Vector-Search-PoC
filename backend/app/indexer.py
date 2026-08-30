@@ -18,8 +18,11 @@ from app.db import (
     clear_all_data,
     delete_document,
     get_all_documents_metadata,
+    get_all_vault_models_stats,
     get_db_embedding_dim,
     get_db_stats,
+    get_model_db_path,
+    get_model_identifier,
     init_db,
     insert_chunks,
     upsert_document,
@@ -79,16 +82,17 @@ class IndexManager:
         glossary: Optional[GlossaryDictionary] = None,
         db_path: Optional[str] = None
     ):
+        self.embedder = embedder
         if db_path:
             self.db_path = str(Path(db_path).resolve())
             self.db_dir = Path(self.db_path).parent
             self.vault_path = Path(vault_path).resolve() if vault_path else self.db_dir.parent
         else:
             self.vault_path = Path(vault_path).resolve()
-            self.db_dir = self.vault_path / ".vector_search"
-            self.db_path = str(self.db_dir / "index.db")
+            self.db_path = get_model_db_path(str(self.vault_path), embedder=self.embedder)
+            self.db_dir = Path(self.db_path).parent
 
-        self.embedder = embedder
+        self.model_identifier = get_model_identifier(embedder=self.embedder)
         init_db(self.db_path)
 
         # 辞書の初期化（指定がない場合はVault直下を探索）
@@ -96,6 +100,7 @@ class IndexManager:
             self.glossary = glossary
         else:
             self.glossary = self._auto_load_glossary()
+
 
     def _auto_load_glossary(self) -> Optional[GlossaryDictionary]:
         """Vault内から辞書ファイル（.xlsx / .csv）を自動探索してロード"""

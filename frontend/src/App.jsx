@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Compass } from 'lucide-react';
+import { Compass, Zap, Sparkles, FileCode } from 'lucide-react';
 import { VaultSelector } from './components/VaultSelector';
 import { ModelSelector } from './components/ModelSelector';
 import { IndexPanel } from './components/IndexPanel';
@@ -18,16 +18,24 @@ import { IncrementalBenchmarkPanel } from './components/IncrementalBenchmarkPane
 import { SearchPanel } from './components/SearchPanel';
 import { ResultList } from './components/ResultList';
 import { GlossaryModal } from './components/GlossaryModal';
+import { HybridSearchPage } from './components/HybridSearchPage';
+import { AiContextExportPage } from './components/AiContextExportPage';
 import { getModelStatus, getVaultStats, loadModel, getDictionaryStatus } from './api/client';
+
 
 const STORAGE_KEYS = {
   VAULT_PATH: 'poc_vault_path',
   MODEL_STANDARD: 'poc_model_standard_path',
   MODEL_LIGHT: 'poc_model_light_path',
   SELECTED_MODEL_TYPE: 'poc_selected_model_type',
+  ACTIVE_NAV_TAB: 'poc_active_nav_tab',
 };
 
 export function App() {
+  const [activeNavTab, setActiveNavTab] = useState(() => {
+    return localStorage.getItem(STORAGE_KEYS.ACTIVE_NAV_TAB) || 'hybrid';
+  });
+
   // LocalStorage からの初期値復元
   const [vaultPath, setVaultPath] = useState(() => {
     return localStorage.getItem(STORAGE_KEYS.VAULT_PATH) || '/Users/mine/000_work/obsidian-dagnetz/01_data';
@@ -97,12 +105,16 @@ export function App() {
 
     refreshVaultAndDict();
 
-    // ユーザーが外部のExcelアプリ等で編集してブラウザに戻ってきた際に自動更新
     window.addEventListener('focus', refreshVaultAndDict);
     return () => {
       window.removeEventListener('focus', refreshVaultAndDict);
     };
   }, [vaultPath]);
+
+  useEffect(() => {
+    if (activeNavTab) localStorage.setItem(STORAGE_KEYS.ACTIVE_NAV_TAB, activeNavTab);
+  }, [activeNavTab]);
+
 
   const handleVaultChanged = (path) => {
     if (path) {
@@ -139,7 +151,33 @@ export function App() {
         </div>
       </header>
 
-      {/* Vault & Model 設定 (2カラム) */}
+      {/* トップレベル ナビゲーションタブ */}
+      <div className="main-nav-tabs">
+        <button
+          className={`main-nav-tab ${activeNavTab === 'hybrid' ? 'active' : ''}`}
+          onClick={() => setActiveNavTab('hybrid')}
+        >
+          <Sparkles size={17} />
+          <span>🔀 ハイブリッド検索 (Hybrid Search - PoC)</span>
+        </button>
+        <button
+          className={`main-nav-tab ${activeNavTab === 'ai-export' ? 'active' : ''}`}
+          onClick={() => setActiveNavTab('ai-export')}
+        >
+          <FileCode size={17} />
+          <span>🤖 AIコンテキスト生成 (Chat AI Export)</span>
+          <span className="badge badge-new">New</span>
+        </button>
+        <button
+          className={`main-nav-tab ${activeNavTab === 'vector' ? 'active' : ''}`}
+          onClick={() => setActiveNavTab('vector')}
+        >
+          <Zap size={17} />
+          <span>⚡ ベクトル検索 (Vector Search 単体)</span>
+        </button>
+      </div>
+
+      {/* 共通: Vault & Model 設定 (2カラム) */}
       <div className="grid-2">
         <VaultSelector
           vaultPath={vaultPath}
@@ -155,54 +193,83 @@ export function App() {
           setLightPath={setLightPath}
           modelStatus={modelStatus}
           setModelStatus={setModelStatus}
+          vaultStats={vaultStats}
+          setVaultStats={setVaultStats}
+          vaultPath={vaultPath}
         />
       </div>
 
-      {/* Index パネル */}
-      <IndexPanel
-        vaultPath={vaultPath}
-        modelStatus={modelStatus}
-        vaultStats={vaultStats}
-        setVaultStats={setVaultStats}
-        dictionaryStatus={dictionaryStatus}
-        onOpenGlossary={() => setIsGlossaryModalOpen(true)}
-      />
+      {/* ページコンテンツ切り替え */}
+      {activeNavTab === 'hybrid' && (
+        /* ハイブリッド検索専用ページ */
+        <HybridSearchPage
+          vaultPath={vaultPath}
+          modelStatus={modelStatus}
+          onOpenGlossary={() => setIsGlossaryModalOpen(true)}
+        />
+      )}
 
-      {/* 差分更新ライブ検証パネル */}
-      <IncrementalBenchmarkPanel
-        vaultPath={vaultPath}
-        isModelLoaded={modelStatus?.loaded}
-        onUpdateCompleted={() => {
-          if (vaultPath) {
-            getVaultStats(vaultPath)
-              .then((st) => setVaultStats(st))
-              .catch(() => {});
-          }
-        }}
-      />
+      {activeNavTab === 'ai-export' && (
+        /* AIコンテキスト用HTMLエクスポートページ */
+        <AiContextExportPage
+          vaultPath={vaultPath}
+          modelStatus={modelStatus}
+          onOpenGlossary={() => setIsGlossaryModalOpen(true)}
+        />
+      )}
 
-      {/* 検索パネル */}
-      <SearchPanel
-        vaultPath={vaultPath}
-        modelStatus={modelStatus}
-        searchMode={searchMode}
-        setSearchMode={setSearchMode}
-        setSearchResults={setSearchResults}
-        setSearchMetrics={setSearchMetrics}
-        setSearchResponseData={setSearchResponseData}
-        searchMetrics={searchMetrics}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-      />
+      {activeNavTab === 'vector' && (
+        /* ベクトル検索単体ページ */
+        <>
+          {/* Index パネル */}
+          <IndexPanel
+            vaultPath={vaultPath}
+            modelStatus={modelStatus}
+            vaultStats={vaultStats}
+            setVaultStats={setVaultStats}
+            dictionaryStatus={dictionaryStatus}
+            onOpenGlossary={() => setIsGlossaryModalOpen(true)}
+            selectedModelType={selectedModelType}
+          />
 
-      {/* 検索結果リスト */}
-      <ResultList
-        results={searchResults}
-        searchMode={searchMode}
-        query={searchQuery}
-        responseData={searchResponseData}
-        onOpenGlossary={() => setIsGlossaryModalOpen(true)}
-      />
+          {/* 差分更新ライブ検証パネル */}
+          <IncrementalBenchmarkPanel
+            vaultPath={vaultPath}
+            isModelLoaded={modelStatus?.loaded}
+            onUpdateCompleted={() => {
+              if (vaultPath) {
+                getVaultStats(vaultPath)
+                  .then((st) => setVaultStats(st))
+                  .catch(() => {});
+              }
+            }}
+          />
+
+          {/* 検索パネル */}
+          <SearchPanel
+            vaultPath={vaultPath}
+            modelStatus={modelStatus}
+            searchMode={searchMode}
+            setSearchMode={setSearchMode}
+            setSearchResults={setSearchResults}
+            setSearchMetrics={setSearchMetrics}
+            setSearchResponseData={setSearchResponseData}
+            searchMetrics={searchMetrics}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+          />
+
+          {/* 検索結果リスト */}
+          <ResultList
+            results={searchResults}
+            searchMode={searchMode}
+            query={searchQuery}
+            responseData={searchResponseData}
+            onOpenGlossary={() => setIsGlossaryModalOpen(true)}
+          />
+        </>
+      )}
+
 
       {/* 専門用語辞書モーダルエディタ */}
       <GlossaryModal
@@ -218,4 +285,5 @@ export function App() {
 }
 
 export default App;
+
 
