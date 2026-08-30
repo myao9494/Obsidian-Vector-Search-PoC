@@ -38,6 +38,13 @@ def test_keyword_api_status_endpoint(client):
 
 def test_hybrid_search_endpoint_without_index(client, tmp_path):
     """インデックス未作成時の400エラー検証"""
+    from app.main import state
+    from unittest.mock import MagicMock
+    mock_emb = MagicMock()
+    mock_emb.model_name = "test-model"
+    mock_emb.embedding_dim = 256
+    state.embedder = mock_emb
+
     response = client.post(
         "/api/hybrid/search",
         json={
@@ -47,6 +54,7 @@ def test_hybrid_search_endpoint_without_index(client, tmp_path):
     )
     assert response.status_code == 400
     assert "インデックスが存在しません" in response.json()["detail"]
+
 
 
 def test_hybrid_search_endpoint_success(client, tmp_path):

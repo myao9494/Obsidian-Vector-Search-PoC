@@ -275,3 +275,34 @@ def test_drawio_svg_dark_mode_sanitization(tmp_path):
     assert "color-scheme: light dark" not in decoded_svg
 
 
+
+def test_render_dataviewjs_table_block():
+    """
+    株人マネゲ【254】.md のような dataviewjs ブロック（noteListRows 配列）が
+    コードブロックではなく、HTMLの table としてレンダリングされることを検証
+    """
+    dataview_md = """# ノート一覧
+<!-- custom-note-list:start -->
+
+```dataviewjs
+const noteListRows = [
+    {"path":"01_data/4888.md","name":"4888 ステラファーマ","tags":["#株人マネゲ","#銘柄分析"],"excerpt":"バイオ SS銘柄","ctime":"2026-07-25 20:56","mtime":"2026-07-27 07:00"},
+    {"path":"01_data/8135.md","name":"8135 ゼット","tags":["#株人マネゲ"],"excerpt":"動画確認しました","ctime":"2026-07-01 07:13","mtime":"2026-07-02 18:37"}
+];
+const tableContainer = dv.el("div", "");
+// renderNoteList...
+```
+
+<!-- custom-note-list:end -->
+
+# 挨拶
+本文テキスト
+"""
+    rendered_html = render_markdown_to_clean_html(dataview_md)
+
+    # コードブロックの生JavaScriptのまま出力されるのではなく、tableとして変換されていること
+    assert "<table" in rendered_html
+    assert "4888 ステラファーマ" in rendered_html
+    assert "8135 ゼット" in rendered_html
+    assert "バイオ SS銘柄" in rendered_html
+    assert "const noteListRows" not in rendered_html

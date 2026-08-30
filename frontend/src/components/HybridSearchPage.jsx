@@ -24,28 +24,26 @@ import {
 } from 'lucide-react';
 import { searchHybrid, getKeywordApiStatus } from '../api/client';
 import { HybridResultList } from './HybridResultList';
-
-const STORAGE_KEY_KEYWORD_URL = 'poc_keyword_api_url';
+import { getSavedHybridSettings, saveHybridSettings } from '../utils/hybridSettings';
 
 export function HybridSearchPage({
   vaultPath,
   modelStatus,
   onOpenGlossary,
 }) {
-  const [keywordApiUrl, setKeywordApiUrl] = useState(() => {
-    return localStorage.getItem(STORAGE_KEY_KEYWORD_URL) || 'http://127.0.0.1:8079';
-  });
+  const initialSettings = getSavedHybridSettings();
 
+  const [keywordApiUrl, setKeywordApiUrl] = useState(initialSettings.keywordApiUrl);
   const [apiStatus, setApiStatus] = useState(null);
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   // 検索パラメータ
   const [query, setQuery] = useState('');
-  const [searchMode, setSearchMode] = useState('chunk'); // 'chunk' | 'document'
-  const [fusionMethod, setFusionMethod] = useState('rrf'); // 'rrf' | 'weighted'
-  const [vectorRatio, setVectorRatio] = useState(50); // 0〜100 (50 = 50:50)
-  const [topK, setTopK] = useState(20);
-  const [useOrQuery, setUseOrQuery] = useState(true);
+  const [searchMode, setSearchMode] = useState(initialSettings.searchMode); // 'chunk' | 'document'
+  const [fusionMethod, setFusionMethod] = useState(initialSettings.fusionMethod); // 'rrf' | 'weighted'
+  const [vectorRatio, setVectorRatio] = useState(initialSettings.vectorRatio); // 0〜100 (50 = 50:50)
+  const [topK, setTopK] = useState(initialSettings.topK);
+  const [useOrQuery, setUseOrQuery] = useState(initialSettings.useOrQuery);
 
   // 検索結果
   const [isSearching, setIsSearching] = useState(false);
@@ -55,12 +53,18 @@ export function HybridSearchPage({
   const [responseData, setSearchResponseData] = useState(null);
   const [searchError, setSearchError] = useState(null);
 
-  // LocalStorage 保存
+  // LocalStorage 自動保存
   useEffect(() => {
-    if (keywordApiUrl) {
-      localStorage.setItem(STORAGE_KEY_KEYWORD_URL, keywordApiUrl);
-    }
-  }, [keywordApiUrl]);
+    saveHybridSettings({
+      keywordApiUrl,
+      searchMode,
+      fusionMethod,
+      vectorRatio,
+      topK,
+      useOrQuery,
+    });
+  }, [keywordApiUrl, searchMode, fusionMethod, vectorRatio, topK, useOrQuery]);
+
 
   // 初回およびURL変更時のAPIステータス確認
   const checkApiConnection = async (urlToCheck = keywordApiUrl) => {

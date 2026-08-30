@@ -658,10 +658,149 @@ def replace_obsidian_image_embeds(
 
 
 
+def parse_js_array_or_json(js_code_str: str) -> Optional[List[Dict[str, Any]]]:
+    """
+    JavaScriptコード内の JSON配列 / オブジェクト配列（例: noteListRows = [...]）を安全にパースする
+    """
+    clean_str = js_code_str.strip()
+    try:
+        if clean_str.startswith("[") and clean_str.endswith("]"):
+            return json.loads(clean_str)
+    except Exception:
+        pass
+
+    try:
+        # 末尾カンマの除去
+        norm = re.sub(r",\s*([\]}])", r"\1", clean_str)
+        # キーにクォートがない場合 {"key": ...} に補正
+        norm = re.sub(r'([{,]\s*)([a-zA-Z0-9_$]+)\s*:', r'\1"\2":', norm)
+        return json.loads(norm)
+    except Exception:
+        pass
+
+    return None
+
+
+def convert_dataview_blocks_to_html(markdown_text: str) -> str:
+    """
+    Markdownテキスト内の Dataview / DataviewJS テーブル定義ブロックを検出し、
+    Obsidian の表示と同様の美しい HTML テーブル (<table>) に変換する。
+    """
+    # 1. ```dataviewjs ... ``` ブロックの置換
+    def replace_dataviewjs_block(match: re.Match) -> str:
+        block_code = match.group(1).strip()
+
+        # 1-1. custom-note-list 形式 (const noteListRows = [...])
+        note_rows_match = re.search(r'(?:const|let|var)\s+(?:noteListRows|rows|data|notes)\s*=\s*(\[[\s\S]*?\]);', block_code)
+        if note_rows_match:
+            raw_array_str = note_rows_match.group(1)
+            rows = parse_js_array_or_json(raw_array_str)
+            if rows and isinstance(rows, list):
+                html_table = [
+                    '\n\n<div class="dataview-table-container" style="overflow-x: auto; margin: 16px 0 24px 0; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.04);">',
+                    '  <table class="dataview table-view-table" style="width: 100%; border-collapse: collapse; font-size: 13.5px; text-align: left;">',
+                    '    <thead>',
+                    '      <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">',
+                    '        <th style="padding: 10px 14px; font-weight: 600; color: #475569; min-width: 140px; text-align: left;">名称</th>',
+                    '        <th style="padding: 10px 14px; font-weight: 600; color: #475569; min-width: 100px; text-align: left;">タグ</th>',
+                    '        <th style="padding: 10px 14px; font-weight: 600; color: #475569; text-align: left;">冒頭 / 抜粋</th>',
+                    '        <th style="padding: 10px 14px; font-weight: 600; color: #475569; min-width: 90px; text-align: center;">作成日</th>',
+                    '        <th style="padding: 10px 14px; font-weight: 600; color: #475569; min-width: 90px; text-align: center;">編集日</th>',
+                    '      </tr>',
+                    '    </thead>',
+                    '    <tbody>',
+                ]
+
+                for row in rows:
+                    name = html.escape(str(row.get("name") or row.get("title") or row.get("file") or ""))
+                    raw_tags = row.get("tags") or []
+                    if isinstance(raw_tags, str):
+                        tag_list = [t.strip() for t in raw_tags.split() if t.strip()]
+                    elif isinstance(raw_tags, list):
+                        tag_list = [str(t).strip() for t in raw_tags if str(t).strip()]
+                    else:
+                        tag_list = []
+
+                    tags_html = "".join([
+                        f'<span class="dataview-tag" style="display: inline-block; padding: 1px 7px; margin: 2px 4px 2px 0; background: rgba(99, 102, 241, 0.12); color: #4f46e5; border-radius: 4px; font-size: 11px; font-weight: 500;">#{html.escape(t.lstrip("#"))}</span>'
+                        for t in tag_list
+                    ])
+
+                    excerpt = html.escape(str(row.get("excerpt") or row.get("preview") or ""))
+                    ctime = html.escape(str(row.get("ctime") or row.get("created") or ""))
+                    mtime = html.escape(str(row.get("mtime") or row.get("modified") or ""))
+
+                    html_table.append('      <tr style="border-bottom: 1px solid #e2e8f0;">')
+                    html_table.append(f'        <td class="dataview-name-cell" style="padding: 10px 14px; font-weight: 600; color: #1e293b;">{name}</td>')
+                    html_table.append(f'        <td class="dataview-tag-cell" style="padding: 10px 14px;">{tags_html}</td>')
+                    html_table.append(f'        <td class="dataview-excerpt-cell" style="padding: 10px 14px; font-size: 12.5px; color: #475569; line-height: 1.45;">{excerpt}</td>')
+                    html_table.append(f'        <td class="dataview-date-cell" style="padding: 10px 14px; font-family: monospace; font-size: 11.5px; color: #64748b; text-align: center; white-space: nowrap;">{ctime}</td>')
+                    html_table.append(f'        <td class="dataview-date-cell" style="padding: 10px 14px; font-family: monospace; font-size: 11.5px; color: #64748b; text-align: center; white-space: nowrap;">{mtime}</td>')
+                    html_table.append('      </tr>')
+
+                html_table.append('    </tbody>')
+                html_table.append('  </table>')
+                html_table.append('</div>\n\n')
+
+                return "\n".join(html_table)
+
+        # 1-2. dv.table(["ヘッダー1", ...], [ [...], ... ]) 形式
+        dv_table_match = re.search(r'dv\.table\s*\(\s*(\[[\s\S]*?\])\s*,\s*(\[[\s\S]*?\])\s*\)', block_code)
+        if dv_table_match:
+            try:
+                headers = json.loads(re.sub(r",\s*([\]}])", r"\1", dv_table_match.group(1)))
+                rows = json.loads(re.sub(r",\s*([\]}])", r"\1", dv_table_match.group(2)))
+                if isinstance(headers, list) and isinstance(rows, list):
+                    html_table = [
+                        '\n\n<div class="dataview-table-container" style="overflow-x: auto; margin: 16px 0 24px 0; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff;">',
+                        '  <table class="dataview table-view-table" style="width: 100%; border-collapse: collapse; font-size: 13.5px;">',
+                        '    <thead><tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">',
+                    ]
+                    for h in headers:
+                        html_table.append(f'      <th style="padding: 10px 14px; font-weight: 600; color: #475569;">{html.escape(str(h))}</th>')
+                    html_table.append('    </tr></thead><tbody>')
+                    for row in rows:
+                        html_table.append('      <tr style="border-bottom: 1px solid #e2e8f0;">')
+                        for cell in (row if isinstance(row, list) else [row]):
+                            html_table.append(f'        <td style="padding: 10px 14px;">{html.escape(str(cell))}</td>')
+                        html_table.append('      </tr>')
+                    html_table.append('    </tbody></table></div>\n\n')
+                    return "\n".join(html_table)
+            except Exception:
+                pass
+
+        return match.group(0)
+
+    text = re.sub(r"```dataviewjs\s*\n([\s\S]*?)\n```", replace_dataviewjs_block, markdown_text)
+
+    # 2. ```dataview\nTABLE ... ``` 標準DQLテーブルブロックの処理
+    def replace_dataview_dql_block(match: re.Match) -> str:
+        dql_code = match.group(1).strip()
+        lines = [line.strip() for line in dql_code.splitlines() if line.strip()]
+        if lines and lines[0].upper().startswith("TABLE"):
+            from_clause = ""
+            for line in lines[1:]:
+                if line.upper().startswith("FROM"):
+                    from_clause = line.strip()
+                    break
+
+            return f'\n\n<div class="dataview-dql-placeholder" style="padding: 12px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #6366f1; border-radius: 6px; margin: 12px 0;">' \
+                   f'<div style="font-weight: 600; font-size: 13px; color: #4f46e5; margin-bottom: 4px;">📊 Dataview Table Query: {html.escape(lines[0])}</div>' \
+                   f'<div style="font-size: 12px; color: #64748b;">{html.escape(from_clause or "Vault全体から抽出")}</div>' \
+                   f'</div>\n\n'
+
+        return match.group(0)
+
+    text = re.sub(r"```dataview\s*\n([\s\S]*?)\n```", replace_dataview_dql_block, text)
+
+    return text
+
+
 def render_markdown_to_clean_html(markdown_text: str) -> str:
     """MarkdownテキストをパースしてHTMLに変換する"""
     text = strip_frontmatter(markdown_text)
     text = strip_excalidraw_data(text)
+    text = convert_dataview_blocks_to_html(text)
     text = expand_wikilinks(text)
     rendered = md_parser.render(text)
     return rendered
@@ -673,6 +812,7 @@ def get_ai_export_css() -> str:
 /* === AI Context Export Reset & Clean Theme === */
 :root {
     --text-primary: #1e293b;
+
     --text-secondary: #475569;
     --text-muted: #64748b;
     --bg-main: #ffffff;

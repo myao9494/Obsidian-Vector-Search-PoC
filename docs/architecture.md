@@ -48,7 +48,9 @@
   - **Base64 Data URL 画像インライン埋め込み**: Vault内の `![[image.png|300]]` や `![alt](image.png)`、SVG/Drawio図面を `data:image/...;base64,...` として完全内包。
   - **Excalidraw キャッシュ未生成時のベクターSVG動的生成**: PNGキャッシュが未生成のノートでも、ノート内の描画データ（compressed-json/JSON）から鮮明なベクターSVGを動的生成して自動埋め込み。
   - **Drawio / SVG ダークモード白黒反転防止正規化**: `color-scheme: light dark` や `light-dark(...)` をライトモード（`#ffffff` 背景、黒線）に正規化し、OS/ブラウザのダークモード下でも正常描画を保証。
+  - **Dataview / DataviewJS テーブル自動変換**: ノート内の `const noteListRows = [...]` や `dv.table()` を自動パースし、Obsidian と同様の美しい HTML テーブル（名称・タグ・抜粋・日付）としてレンダリング。
   - **構造化出力**: AI共通プロンプト + ドキュメント目次 + Markdownレンダリング本文 + マークダウン元データ（Raw Markdown）。
+
 
 - **Open Hub & Native File Integration (`main.py`)**:
   - 外部Open Hub（8001番）への307リダイレクト (`GET /api/open/file`)。

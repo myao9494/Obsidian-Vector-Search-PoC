@@ -30,15 +30,21 @@ import {
   Info,
 } from 'lucide-react';
 import { searchHybrid, exportAiHtml } from '../api/client';
+import { getSavedHybridSettings } from '../utils/hybridSettings';
 
 const PROMPT_PRESETS = [
+
+  {
+    label: '❓ 質問に対する根拠付きの回答',
+    prompt: `以下の参考ドキュメントの内容のみに基づいて、上記の質問に対して過不足なく正確に回答してください。ドキュメントに記載のない推測は含めず、根拠となるノート名やセクションを明記してください。`,
+  },
+  {
+    label: '🛠️ 資料の修正・推敲',
+    prompt: `以下の参考ドキュメントを精査し、記載内容の誤り・論理矛盾・表現の不備・不足している情報を洗い出し、具体的な修正案および改善後の文章を提示してください。`,
+  },
   {
     label: '💡 総合要約 & 決定事項とアクション抽出',
     prompt: `以下の参考ドキュメントをすべて熟読した上で、全体の内容を論理的に要約し、重要な決定事項（Decisions）と今後のネクストアクション（Action Items / TODO）を箇条書きで明確に整理して回答してください。`,
-  },
-  {
-    label: '❓ 質問に対する正確な根拠付き回答',
-    prompt: `以下の参考ドキュメントの内容のみに基づいて、上記の質問に対して過不足なく正確に回答してください。ドキュメントに記載のない推測は含めず、根拠となるノート名やセクションを明記してください。`,
   },
   {
     label: '📝 課題・リスクの網羅的レビュー',
@@ -50,7 +56,25 @@ const PROMPT_PRESETS = [
   },
 ];
 
+
+// スニペット・根拠文の整形（200文字制限 + '...'）
+function truncateSnippet(item, maxLength = 200) {
+  const raw = item.snippet || item.salient_sentence || item.hit_text || item.preview || '';
+  if (!raw) return '';
+
+  // タグを除いたプレーンテキスト長をチェック
+  const plainText = raw.replace(/<[^>]+>/g, '').trim();
+  if (!plainText) return '';
+
+  if (plainText.length <= maxLength) {
+    return raw;
+  }
+
+  return plainText.slice(0, maxLength) + '...';
+}
+
 export function AiContextExportPage({
+
   vaultPath,
   modelStatus,
   onOpenGlossary,
@@ -91,20 +115,27 @@ export function AiContextExportPage({
 
     setIsSearching(true);
     try {
+      // 「ハイブリッド検索」タブで設定された最新の検索設定（重み、融合方式、検索単位、API URL、ORクエリ等）を適用
+      const settings = getSavedHybridSettings();
+
       const res = await searchHybrid(
         vaultPath,
         q.trim(),
-        'http://127.0.0.1:8079',
-        'document',
-        20,
-        0.5,
-        0.5,
-        'rrf',
-        60
+        settings.keywordApiUrl,
+        settings.searchMode,
+        settings.topK,
+        settings.vWeight,
+        settings.kWeight,
+        settings.fusionMethod,
+        60,
+        settings.useOrQuery ? null : q.trim()
       );
 
       const items = res.hybrid_results || [];
       setCandidates(items);
+
+
+
 
       // デフォルトの選択は「何も選択しない」
       setSelectedPaths(new Set());
@@ -296,10 +327,21 @@ export function AiContextExportPage({
 
       {/* ステップ1: 質問・キーワード検索 & 候補抽出 */}
       <div className="panel" style={{ marginBottom: '16px' }}>
-        <h2 className="panel-title">
-          <Search size={18} />
-          ステップ 1: 質問・キーワードで関連ノートを抽出
-        </h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          <h2 className="panel-title" style={{ margin: 0 }}>
+            <Search size={18} />
+            ステップ 1: 質問・キーワードで関連ノートを抽出
+          </h2>
+          {(() => {
+            const currentSettings = getSavedHybridSettings();
+            return (
+              <div style={{ fontSize: '11px', color: 'var(--text-dim)', background: 'rgba(255, 255, 255, 0.04)', padding: '3px 9px', border: '1px solid var(--border-color)', borderRadius: '4px' }}>
+                ⚙️ <strong>ハイブリッド設定連動中:</strong> 🔮 ベクトル {currentSettings.vectorRatio}% : 🏷️ キーワード {100 - currentSettings.vectorRatio}% | 融合: {currentSettings.fusionMethod.toUpperCase()} | 単位: {currentSettings.searchMode === 'chunk' ? 'チャンク' : 'ドキュメント'}
+              </div>
+            );
+          })()}
+        </div>
+
 
         <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
           <input
@@ -451,15 +493,25 @@ export function AiContextExportPage({
                         {item.path}
                       </td>
                       <td
-                        style={{ fontSize: '11.5px', color: 'var(--text-dim)', maxWidth: '300px' }}
+                        style={{
+                          fontSize: '11.5px',
+                          color: 'var(--text-dim)',
+                          maxWidth: '360px',
+                          lineHeight: '1.45',
+                          wordBreak: 'break-word',
+                        }}
                         onClick={() => toggleSelect(item.path)}
                       >
-                        {item.snippet ? (
-                          <span dangerouslySetInnerHTML={{ __html: item.snippet }} />
-                        ) : (
-                          (item.salient_sentence || item.hit_text || item.preview || '').slice(0, 80) + '...'
-                        )}
+                        {(() => {
+                          const formatted = truncateSnippet(item, 200);
+                          return formatted.includes('<mark>') ? (
+                            <span dangerouslySetInnerHTML={{ __html: formatted }} />
+                          ) : (
+                            <span>{formatted}</span>
+                          );
+                        })()}
                       </td>
+
                     </tr>
                   );
                 })}
